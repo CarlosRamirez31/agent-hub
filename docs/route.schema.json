@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent Hub conversation route v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["idCarpeta", "idMessage", "agente"],
+  "properties": {
+    "version": {"const": 1},
+    "idCarpeta": {"type": "string", "minLength": 1, "maxLength": 4096},
+    "idMessage": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$"},
+    "agente": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$"}
+  }
+}

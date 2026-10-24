@@ -17,9 +17,9 @@ import fcntl
 import termios
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from codex_hub.cli import launch, update
-from codex_hub.store import Chat, Library, read_chats, visible
-from codex_hub.ui import clean
+from agent_hub.cli import launch, update
+from agent_hub.store import Chat, Library, read_chats, visible
+from agent_hub.ui import clean
 
 ROOT = Path(__file__).resolve().parents[1]
 ID = str(uuid.UUID(int=1))
@@ -105,8 +105,8 @@ class CommandsTests(unittest.TestCase):
             for _ in range(2):
                 result = subprocess.run([str(ROOT / "install.sh")], env=env, capture_output=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
-            link = Path(temporary) / ".local/bin/codex-hub"
-            self.assertEqual(link.resolve(), ROOT / "bin/codex-hub")
+            link = Path(temporary) / ".local/bin/agent-hub"
+            self.assertEqual(link.resolve(), ROOT / "bin/agent-hub")
             link.unlink()
             link.write_text("do not replace")
             result = subprocess.run([str(ROOT / "install.sh")], env=env, capture_output=True)
@@ -114,16 +114,16 @@ class CommandsTests(unittest.TestCase):
             self.assertEqual(link.read_text(), "do not replace")
 
     def test_update_rejects_other_origins_before_network(self):
-        with patch("codex_hub.cli.subprocess.check_output", return_value="https://example.com/repo.git\n"), \
-                patch("codex_hub.cli.subprocess.run") as run:
+        with patch("agent_hub.cli.subprocess.check_output", return_value="https://example.com/repo.git\n"), \
+                patch("agent_hub.cli.subprocess.run") as run:
             with self.assertRaisesRegex(ValueError, "origin"):
                 update()
             run.assert_not_called()
 
     def test_update_rejects_local_changes(self):
-        with patch("codex_hub.cli.subprocess.check_output", side_effect=[
+        with patch("agent_hub.cli.subprocess.check_output", side_effect=[
                 "https://github.com/CarlosRamirez31/codex-hub.git\n", " M README.md\n"]), \
-                patch("codex_hub.cli.subprocess.run") as run:
+                patch("agent_hub.cli.subprocess.run") as run:
             with self.assertRaisesRegex(ValueError, "cambios locales"):
                 update()
             run.assert_not_called()
@@ -144,7 +144,7 @@ class TerminalTests(unittest.TestCase):
             env = {**os.environ, "TERM": "xterm-256color", "CODEX_HOME": temporary,
                    "XDG_STATE_HOME": str(root / "state"),
                    "PATH": str(root) + os.pathsep + os.environ["PATH"], "PYTHONDONTWRITEBYTECODE": "1"}
-            process = subprocess.Popen([str(ROOT / "bin/codex-hub")], stdin=slave, stdout=slave, stderr=slave, env=env)
+            process = subprocess.Popen([str(ROOT / "bin/agent-hub"), "--agent", "codex"], stdin=slave, stdout=slave, stderr=slave, env=env)
             os.close(slave)
             output = bytearray()
 
@@ -177,7 +177,7 @@ class TerminalTests(unittest.TestCase):
             fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 28, 110, 0, 0))
             env = {**os.environ, "TERM": "xterm-256color", "XDG_STATE_HOME": temporary,
                    "CODEX_HOME": str(Path(temporary) / "missing"), "PYTHONDONTWRITEBYTECODE": "1"}
-            process = subprocess.Popen([str(ROOT / "bin/codex-hub"), "--demo"],
+            process = subprocess.Popen([str(ROOT / "bin/agent-hub"), "--demo"],
                                        stdin=slave, stdout=slave, stderr=slave, env=env)
             os.close(slave)
             output = bytearray()
@@ -194,7 +194,7 @@ class TerminalTests(unittest.TestCase):
                 self.assertIn(marker, output, output.decode(errors="replace"))
 
             try:
-                drain_until(b"CODEX HUB")
+                drain_until(b"AGENT HUB")
                 os.write(master, b"lj /Neovim\n")
                 drain_until(b"Buscar")
                 os.write(master, b"sPersonal\n")

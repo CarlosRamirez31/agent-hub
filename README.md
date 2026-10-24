@@ -1,116 +1,154 @@
-# ◈ Codex Hub
+# ◈ Agent Hub
 
-Tus conversaciones de Codex en una interfaz de terminal con proyectos, secciones y navegación tipo Vim. Proyecto independiente de los dotfiles de Carlos Ramirez. Código original, sin código copiado de otros gestores.
+Tus agentes, carpetas y conversaciones en una terminal. Un solo agente entra directamente; con varios aparece un selector. Código original, Python estándar y mantenimiento independiente de los dotfiles. Proyecto comunitario de Carlos Ramirez, sin afiliación con los fabricantes de agentes.
 
 ```text
- ◈ CODEX HUB         tu espacio de conversaciones
+ ◈ AGENT HUB         Hermes
  LOCAL · sin telemetría
 
- PROYECTOS                         │ dotfiles · 2
-   ▸ dotfiles (2)                  │ Mi configuración de Neovim
-   ▸ codex-hub (0)                 │   23 oct 20:30 · ~/proyectos/dotfiles
+ PROYECTOS                         │ PPE - From Codex · 1
+   ▸ PPE (2)                       │ Preparar métricas · From Codex
+   ▸ PPE - From Codex (1)           │   23 oct 20:30 · ~/proyectos/ppe
    + Agregar carpeta               │
-   Recientes (2)                   │ Ajustar los atajos
-   ★ Favoritos                     │   23 oct 19:15 · ~/proyectos/dotfiles
-   ▸ Otras carpetas (1)            │
+   Recientes (3)                   │
+   ★ Favoritos                     │
 
  j/k mover · l entrar · h volver · Enter continuar · f copia · p carpeta
+ / buscar · t recientes · x pasar contexto · A agentes · y ruta JSON
 ```
 
-## Instalar tu versión
+## Instalar
 
-Necesitas Linux/macOS, Python 3.10+ con `curses` y `sqlite3`, Git y el [Codex CLI oficial](https://learn.chatgpt.com/docs/cli) instalado y autenticado. No necesitas paquetes de Python, Node ni Rust para el hub.
+Linux/macOS, Python 3.10+ con `curses` y `sqlite3`, Git y al menos un agente instalado. No hay dependencias de Python externas, Node, Rust, servidor web ni servicio remoto propio.
 
 ```sh
-git clone https://github.com/CarlosRamirez31/codex-hub.git "$HOME/.local/share/codex-hub"
-cd "$HOME/.local/share/codex-hub"
+git clone https://github.com/CarlosRamirez31/agent-hub.git "$HOME/.local/share/agent-hub"
+cd "$HOME/.local/share/agent-hub"
 ./install.sh
-codex-hub
+agent-hub
 ```
 
-El instalador crea únicamente `~/.local/bin/codex-hub`, un enlace al checkout. No sobrescribe comandos existentes, descarga dependencias ni pide sudo. Incluye `~/.local/bin` en tu `PATH`. Conserva el checkout: el enlace lo utiliza.
-
-Para probar sin instalar ni abrir chats reales:
+El instalador solo crea `~/.local/bin/agent-hub`, un enlace a este checkout. No descarga dependencias, no usa sudo y no reemplaza otro comando existente. Incluye `~/.local/bin` en tu `PATH` y conserva el checkout. Elimina el enlace anterior `codex-hub` únicamente si pertenece a este mismo proyecto. La biblioteca antigua de Codex se copia al formato nuevo una sola vez, conservando el archivo original y tu organización.
 
 ```sh
-./bin/codex-hub --demo
+agent-hub --demo          # datos ficticios, sin ejecutar agentes ni guardar estado
+agent-hub agents --json   # agentes detectados, ubicaciones e instalación
+agent-hub --agent hermes  # entrar a un agente concreto sin selector
+agent-hub --count         # recuentos, sin mostrar textos de conversaciones
 ```
 
-## Uso
+El registro incluye lectores para Codex, Hermes, Claude Code, Gemini CLI y el formato SQLite conocido de OpenCode. **No existe un formato universal de historial.** Otros agentes se incorporan mediante un adaptador configurable y un índice JSON normalizado: [registro y formatos](docs/adapters.md). No se instala ningún agente ni se cambian sus proveedores, credenciales o herramientas.
+
+## Navegación
 
 | Tecla | Acción |
 |---|---|
-| `l`, derecha | Entrar a la carpeta seleccionada y enfocar sus conversaciones |
-| `h`, izquierda | Volver a la lista de carpetas |
-| `Tab` | Entrar a la carpeta seleccionada o volver al panel izquierdo |
-| `j/k`, arriba/abajo | Navegar; en carpetas no cambia la lista derecha |
-| `g/G` | Ir al principio/final |
-| `Enter` | Entrar a una carpeta o continuar la conversación seleccionada |
-| `f` | Continuar en una copia independiente del chat seleccionado |
-| `p` | Agregar carpeta con un selector de directorios |
-| `n` | Chat nuevo en el proyecto seleccionado: confirmar o escribir carpeta; `Ctrl+U` limpia |
-| `t` | Saltar a recientes, ordenados por última actividad |
-| `/`, `Esc` | Buscar en la lista abierta y limpiar búsqueda; sin búsqueda, `Esc` vuelve a carpetas |
-| espacio | Marcar/desmarcar favorito |
-| `s` | Crear sección |
-| `m` | Mover chat a una sección; vacío quita la asignación |
-| `r` | Cambiar título local; vacío restaura el título de Codex |
-| `a` | Alternar vista normal/archivados |
-| `R` | Revisar cambios del índice local mientras el hub está abierto; al iniciar es automático |
+| `j/k`, arriba/abajo | Navegar; en carpetas no cambia el panel derecho |
+| `l`, derecha, `Enter` en carpeta | Entrar a sus conversaciones |
+| `h`, izquierda | Volver a carpetas |
+| `Tab` | Entrar al espacio seleccionado o volver al panel izquierdo |
+| `Enter` en un chat | Continuar la misma conversación nativa |
+| `f` | Fork nativo, cuando el agente lo admite |
+| `x` | Pasar el contexto seleccionado a otro agente y abrir la continuación |
+| `A` | Cambiar de agente |
+| `y` | Guardar la ruta JSON del chat en el estado local |
+| `p` | Agregar una carpeta, aunque no tenga chats |
+| `n` | Nueva conversación en la carpeta seleccionada |
+| `/`, `Esc` | Filtrar la lista abierta y limpiar la búsqueda; sin filtro, volver a carpetas |
+| `t`, `g/G` | Recientes y principio/final de una lista |
+| espacio | Favorito |
+| `s`, `m`, `r` | Crear sección, asignar sección y cambiar título local |
+| `a`, `R` | Alternar archivados y revisar cambios del índice |
 | `?`, `q` | Ayuda y salir |
 
-El panel izquierdo muestra **los proyectos ya registrados en Codex**, sus nombres y la cantidad de conversaciones de cada uno. No duplica los chats debajo de las carpetas. Moverte con `j/k` solo cambia la selección izquierda: el contenido y la selección de la derecha permanecen iguales.
+En el selector de carpetas, `j/k` navega, `Enter/l` entra, `h` sube, `.` muestra ocultas y `/` permite escribir la ruta. **Espacio agrega la carpeta abierta** y `Esc` cancela. No crea ni borra directorios de código.
 
-Sitúate en una carpeta, pulsa **`l`** y busca la conversación a la derecha con `j/k` o `/`. **`Enter` continúa la misma conversación** y `h` vuelve a las carpetas. `t` abre los recientes; `/` filtra la lista que tienes abierta, por lo que dentro de un proyecto busca solo sus conversaciones. Los contadores de las carpetas muestran el total, incluso mientras filtras.
+Al abrir un chat, el hub cede la terminal al agente real. Sal del CLI con su comando de salida (por ejemplo `/quit` en Codex y Hermes) para volver al menú. No mantiene un panel lateral visible mientras estás escribiendo dentro del agente. Los bloqueos de una conversación abierta en otra app los gestiona su agente: cierra la sesión allí y reintenta; el hub no fuerza bloqueos.
 
-Para agregar un proyecto sin conversaciones, pulsa `p` o selecciona **+ Agregar carpeta**. En el selector, `j/k` navega, `Enter/l` entra, `h` sube, `.` muestra carpetas ocultas y `/` permite escribir una ruta (`Ctrl+U` limpia). **Espacio agrega la carpeta abierta**; `Esc` cancela. No crea ni borra directorios. El proyecto se conserva al reiniciar el hub y `n` inicia su primera conversación en esa ruta.
+## Sincronización y base local
 
-El hub usa la asociación de proyecto de Codex cuando está disponible; en los demás casos asigna cada chat a la raíz de proyecto más específica que contiene su carpeta, incluidas subcarpetas. Admite proyectos con varias raíces. Las carpetas con chats que no pertenecen a un proyecto registrado se encuentran bajo **Otras carpetas**; sus conversaciones también están en recientes. Las carpetas registradas varias veces por la misma ruta o un enlace simbólico no se duplican en el hub.
+Al iniciar, el hub revisa **todos los agentes registrados**, sus fuentes locales y los cambios de carpetas/conversaciones. La base privada `${XDG_STATE_HOME:-~/.local/state}/agent-hub/index.sqlite` guarda agentes, fuentes, proyectos, conversaciones, mensajes importados y continuaciones. Los IDs están separados por agente. Los registros sin cambios no se duplican ni se reimportan; los borrados se reflejan después de una lectura completa y correcta de la fuente.
 
-Los proyectos agregados desde el hub, favoritos, títulos y secciones se guardan en su propia biblioteca local. No modifican la organización de la app de Codex. En proyectos con varias raíces, `n` propone la primera; puedes cambiar la ruta antes de iniciar Codex.
+Si una fuente o contenedor deja de estar accesible, se conserva su caché y se informa del error. La ausencia temporal de una fuente no se interpreta como borrar todo. Las carpetas locales, favoritos, secciones y títulos propios viven en `libraries/ID_AGENTE.json`, separados para evitar colisiones entre agentes. Si borras un proyecto nativo pero conservas sus conversaciones, estas siguen disponibles por su carpeta o en recientes. Las carpetas que agregaste solo al hub se conservan.
 
-## Actualización de carpetas y conversaciones
-
-**Al abrir el hub la lectura del índice local de Codex es automática, desde la primera apertura; no tienes que pulsar `R`.** Las carpetas existentes se reutilizan por ID y ruta. No se crean directorios, no se duplican proyectos y no se reescribe la biblioteca si no cambias su organización. El índice se lee para detectar proyectos nuevos, cambios y eliminaciones.
-
-Las conversaciones o proyectos eliminados desde la app de Codex dejan de aparecer como elementos importados en la siguiente apertura, cuando Codex haya actualizado su índice. Si eliminas un proyecto pero conservas sus conversaciones, estas siguen en recientes y su ruta puede aparecer bajo «Otras carpetas». Las carpetas que agregaste solo en el hub se conservan en su biblioteca independiente.
-
-Mientras el hub permanece abierto, `R` permite revisar cambios sin reiniciarlo. También revisa el índice al volver de una conversación de Codex. No hay sondeo continuo, sincronización de dos vías ni conexión con el historial de ChatGPT web.
-
-Al abrir un chat, el hub cede la terminal al **Codex CLI real** usando su ID y carpeta. Al salir de Codex (`/quit`), vuelve al selector. El hub no mantiene el panel lateral visible mientras escribes en Codex ni gestiona varias terminales simultáneas.
-
-Si Codex muestra **«This conversation is open in another app»**, cierra esa conversación en la otra app y pulsa `r` en esa pantalla para reintentar. Ese aviso es un bloqueo de la conversación, distinto de la revisión de proyectos con `R` en el hub. Si prefieres dejar abierta la original, usa `f` para continuar en una copia; puedes hacerlo desde esa pantalla o desde la lista de chats del hub. El hub no fuerza ni elimina bloqueos.
-
-## Privacidad y conexiones
-
-- El hub no hace conexiones de red al explorar, buscar u organizar. No hay telemetría, anuncios, rastreadores, servidor web, comprobaciones automáticas de actualización ni dependencias de terceros.
-- Lee solo metadatos del índice SQLite local de Codex: ID, título, carpeta, fecha, estado de archivado y asociación de proyecto; además de nombres, orden y rutas de los proyectos. Abre la base en **solo lectura**. No lee credenciales, transcripciones ni resultados de herramientas.
-- Guarda su organización en `${XDG_STATE_HOME:-~/.local/state}/codex-hub/library.json`, con permisos `0600` al escribir. No incluye ese estado en el repositorio.
-- El modo `--demo` usa datos ficticios y memoria: no lee el índice ni escribe la biblioteca.
-- **Codex sigue conectándose a OpenAI y conserva su configuración**, incluidas integraciones, MCP y plugins que tú ya hayas configurado. El hub no instala ni activa servicios adicionales y no bloquea el tráfico de Codex ni de sus herramientas. No es un sandbox de red.
-- Las únicas conexiones que realiza el mantenimiento del hub son las que solicitas al clonar el repositorio o ejecutar `codex-hub update`, mediante Git hacia este repositorio de GitHub. Nunca consulta el proyecto del que surgió la idea ni otro registro de paquetes.
-- Los comandos se ejecutan con argumentos separados, sin shell, y no desactivan las aprobaciones ni el sandbox de Codex.
-
-El índice SQLite es un formato interno de Codex y puede cambiar. Se usa para admitir también chats con historial paginado sin analizar conversaciones enteras. Si una versión cambia las columnas necesarias, el hub muestra un error y conserva los datos. No hay sincronización con la nube ni importación del historial de ChatGPT web.
-
-## Actualizar y mantener
+El arranque normal importa el **índice**, no analiza todos los mensajes ni consume tokens para resumirlos. El texto visible de una conversación se importa a la base al transferirla. También puedes importar el historial visible de un agente explícitamente:
 
 ```sh
-codex-hub update
+agent-hub sync --json
+agent-hub sync --agent hermes --include-messages --json
 ```
 
-La actualización es **manual**. Acepta únicamente `origin=https://github.com/CarlosRamirez31/codex-hub.git`, rama `main`, checkout limpio y avance directo (`git pull --ff-only`). No instala nada después de descargar. Reinicia el hub para usar los cambios.
+La importación de mensajes de Codex usa su app-server local con lecturas paginadas, sin iniciar turnos del modelo. No se exportan razonamientos internos, prompts de sistema ni resultados de herramientas. La sincronización con la app de Codex usa su índice local, no el historial de ChatGPT web. Mientras el hub está abierto puedes pulsar `R`; al volver del agente también actualiza. No hay sondeo continuo ni sincronización de dos vías.
 
-Para desarrollar, clona el mismo repositorio en tu carpeta de proyectos y ejecuta desde allí. Puedes instalar ese checkout con `./install.sh` si aún no existe el comando. Cada clon es independiente de los dotfiles.
+## Pasar contexto a otro agente
+
+Entra al chat, pulsa `x` y elige destino (si solo hay otro disponible, entra directamente). Se exporta el texto visible del usuario y asistente, se prepara una conversación independiente y se abre el agente de destino. El proyecto lógico se llama **`PPE - From Codex`**, por ejemplo, y conserva la carpeta de trabajo original: **no copia ni renombra el repositorio de código**.
+
+El contexto y la procedencia se guardan con permisos privados en `handoffs/`. Por defecto se conservan hasta 120.000 caracteres recientes y se indica expresamente si se omitió o truncó contenido. No se inventa un resumen mediante un modelo ni se transfiere la cuenta o el saldo de tokens; el destino usa su autenticación y presupuesto propios. El historial se presenta como contenido citado, no como instrucciones de sistema.
+
+También se puede preparar desde el CLI:
+
+```sh
+agent-hub transfer --route-file /ruta/origen.json --to hermes --json
+```
+
+Devuelve una ruta estable de destino y no llama al modelo hasta abrirla. Añade `--launch` si quieres abrir inmediatamente. Después de la primera ejecución, enlaza la única sesión nativa nueva en esa carpeta. Si no puede determinarla sin ambigüedad, **no vuelve a crear copias**: debes enlazar el ID verificado con:
+
+```sh
+agent-hub bind --agent hermes --conversation handoff-ID --native-id ID_NATIVO
+```
+
+Ese mecanismo también preserva las rutas de conversaciones nuevas preparadas por `agent-hub new`. Un fallo al iniciar no garantiza que el agente nativo haya creado una sesión: revisa el estado y su ID antes de enlazar. Los agentes pueden variar sus flags o formatos; consulta sus lectores y configuración antes de incorporarlos.
+
+## Contrato de apertura para otras apps
+
+```json
+{"version":1,"idCarpeta":"ID_CARPETA","idMessage":"ID_CONVERSACION","agente":"codex"}
+```
+
+`idMessage` identifica una **conversación/sesión**, no un turno individual. Los IDs son opacos; un ID preparado `handoff-...` o `new-...` sigue resolviendo a la misma sesión nativa una vez enlazado. `version` puede omitirse para la versión 1. No inventes IDs a partir de títulos o nombres de carpetas.
+
+```sh
+agent-hub projects --agent codex --json
+agent-hub conversations --agent codex --json
+agent-hub route --agent codex --folder ID_CARPETA --conversation ID_CONVERSACION
+agent-hub open --route-file /ruta/conversacion.json --dry-run
+agent-hub open --route-file /ruta/conversacion.json
+```
+
+Cada conversación listada incluye su objeto `route`. Se valida la combinación exacta agente/carpeta/conversación. Una ruta inexistente falla con código distinto de cero; nunca abre otro chat como fallback. Los subcomandos de consulta emiten JSON limpio; `open` cede la terminal al CLI real.
+
+Para preparar una conversación nueva y obtener su ruta antes de abrirla:
+
+```sh
+agent-hub new --agent hermes --folder ID_CARPETA --json
+```
+
+Usa `--launch` para abrirla inmediatamente, o guarda su JSON y llama luego a `open`. El hub crea la sesión nativa al abrir por primera vez y enlaza el ID al salir. Si la sesión sigue abierta, no intentes abrirla de nuevo simultáneamente desde otra app.
+
+[Esquema JSON](docs/route.schema.json) · [Prompt listo para la integración de Coucou](docs/coucou-integration-prompt.md). **Este repositorio no modifica Coucou, sus lanzadores ni los dotfiles.** Su integración se hará en otro trabajo usando este contrato público, sin leer las tablas privadas.
+
+## Privacidad, mantenimiento y pruebas
+
+- SQLite y archivos de contexto/biblioteca usan permisos 0600; los directorios de estado se crean privados.
+- No se leen credenciales ni se escriben bases o sesiones nativas. Los agentes crean sus sesiones mediante sus CLIs reales.
+- El hub no tiene telemetría, webviews, servidor remoto, proveedor de IA propio ni dependencias descargadas.
+- Ejecutar un agente conserva sus conexiones, configuración, permisos y sandbox existentes. El hub no bloquea su red ni altera sus herramientas.
+- Los comandos se ejecutan mediante arrays argv, sin shell. Los adaptadores de contenedor usan el motor local, no SSH ni un servicio externo.
+- La única conexión de mantenimiento es la actualización **manual** desde este repositorio de GitHub.
+
+```sh
+agent-hub update
+```
+
+Requiere checkout limpio, rama `main` y avance directo (`--ff-only`). Las instalaciones anteriores reconocen el remoto antiguo del mismo propietario y lo migran a `agent-hub`; no aceptan repositorios de terceros. Para migrar el nombre del comando desde una versión antigua, ejecuta también `./install.sh` desde el checkout actualizado.
 
 ```sh
 python3 -B -m unittest discover -s tests -v
-./bin/codex-hub --count
-./bin/codex-hub --demo
+sh -n install.sh
+./bin/agent-hub --demo
 ```
 
-`--count` muestra la cantidad de conversaciones y proyectos importados sin revelar títulos ni carpetas. Si no existe todavía una base de Codex, el hub muestra la biblioteca local y permite agregar carpetas vacías.
+Las pruebas automáticas son locales y no usan modelos ni servicios de IA. En esta versión se comprobaron además Codex app-server y Hermes reales, incluida una continuación de contexto ficticio hacia Hermes, su sesión nativa y su ruta de apertura.
 
-Para desinstalar el comando, elimina únicamente el enlace `~/.local/bin/codex-hub`. Tus chats de Codex y la organización local se conservan.
-
-MIT · Carlos Ramirez · proyecto comunitario, sin afiliación con OpenAI.
+Para desinstalar, elimina el enlace `~/.local/bin/agent-hub`; la base y las conversaciones se conservan. MIT · Carlos Ramirez.

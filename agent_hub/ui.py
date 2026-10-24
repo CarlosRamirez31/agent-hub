@@ -16,9 +16,10 @@ def clean(value):
 
 
 class Hub:
-    def __init__(self, screen, library, chats, home, demo=False, projects=()):
+    def __init__(self, screen, library, chats, home, demo=False, projects=(), manager=None, adapter=None):
         self.screen, self.library, self.chats = screen, library, chats
         self.home, self.demo = home, demo
+        self.manager, self.adapter, self.next_agent = manager, adapter, None
         self.imported = list(projects)
         self.projects = project_catalog(chats, self.imported, library)
         self.others = False
@@ -90,8 +91,8 @@ class Hub:
             self.put(0, 0, "Amplía la terminal a 66 × 16. q para salir.")
             self.screen.refresh()
             return
-        self.put(1, 2, "◈  CODEX HUB", curses.A_BOLD | self.color(1))
-        self.put(1, 23, "tu espacio de conversaciones", curses.A_DIM)
+        self.put(1, 2, "◈  AGENT HUB", curses.A_BOLD | self.color(1))
+        self.put(1, 23, self.adapter.name if self.adapter else "tu espacio de conversaciones", curses.A_DIM)
         self.put(2, 2, "DEMO · datos ficticios" if self.demo else "LOCAL · sin telemetría", self.color(3))
         chats = self.current()
         self.selected = min(self.selected, max(0, len(chats)-1))
@@ -132,7 +133,7 @@ class Hub:
         self.put(height-5, side+3, ("Buscar: " + self.query) if self.query else detail, self.color(3))
         self.put(height-3, 2, self.message, self.color(1))
         self.put(height-2, 2, "j/k mover · l entrar · h volver · Enter continuar · f copia · p carpeta · n chat · q salir", curses.A_DIM)
-        self.put(height-1, 2, "/ buscar aquí · t recientes · espacio ★ · s sección · m mover · r título · R sincronizar · ? ayuda", curses.A_DIM)
+        self.put(height-1, 2, "/ buscar · t recientes · x pasar contexto · A agentes · y ruta JSON · R sincronizar · ? ayuda", curses.A_DIM)
         self.screen.refresh()
 
     def prompt(self, label, initial=""):
@@ -159,8 +160,12 @@ class Hub:
 
     def reload(self):
         if not self.demo:
-            self.chats = read_chats(self.home)
-            self.imported = read_projects(self.home)
+            if self.manager:
+                self.manager.sync([self.adapter.id])
+                self.chats, self.imported = self.manager.snapshot(self.adapter.id)
+            else:
+                self.chats = read_chats(self.home)
+                self.imported = read_projects(self.home)
         self.projects = project_catalog(self.chats, self.imported, self.library)
         if self.group[0] == "project" and not any(p.id == self.group[1] for p in self.projects):
             self.group, self.query, self.selected = ("recent", ""), "", 0
@@ -257,21 +262,56 @@ class Hub:
         curses.endwin()
         try:
             try:
-                code = launch(chat, cwd, fork=fork)
+                if self.manager:
+                    if chat:
+                        code = self.manager.open(self.manager.route(self.adapter.id, chat, self.projects), fork=fork)
+                    else:
+                        code = self.adapter.launch(cwd or str(Path.cwd()))
+                else:
+                    code = launch(chat, cwd, fork=fork)
             except KeyboardInterrupt:
                 code = 130
-            self.message = f"Codex terminó ({code}). Tu biblioteca sigue aquí."
+            name = self.adapter.name if self.adapter else "Codex"
+            self.message = f"{name} terminó ({code}). Tu biblioteca sigue aquí."
         finally:
             curses.reset_prog_mode()
             self.screen.keypad(True)
             self.screen.clear()
         self.reload()
 
+    def transfer_chat(self, chat):
+        if not self.manager:
+            self.message = "Abre agent-hub para transferir entre agentes reales."
+            return
+        from .cli import choose_agent
+        targets = [a for a in self.manager.agents if a.id != self.adapter.id and a.available and a.prompt]
+        if not targets:
+            raise ValueError("No hay otro agente instalado con recepción de contexto configurada.")
+        target = targets[0].id if len(targets) == 1 else choose_agent(self.screen, targets, "PASAR CONTEXTO · AGENTE DESTINO")
+        if not target:
+            return
+        self.message = "Preparando contexto visible de la conversación seleccionada…"
+        self.draw()
+        route = self.manager.prepare_transfer(self.manager.route(self.adapter.id, chat, self.projects), target)
+        curses.def_prog_mode()
+        curses.endwin()
+        try:
+            self.manager.open(route)
+        finally:
+            curses.reset_prog_mode()
+            self.screen.keypad(True)
+            self.screen.clear()
+        self.next_agent = target
+
     def help(self):
         self.screen.erase()
         height, width = self.screen.getmaxyx()
         lines = [
-            "CODEX HUB · AYUDA",
+            "AGENT HUB · AYUDA",
+            "Con un agente entras directamente; con varios eliges. A cambia de agente.",
+            "x pasa contexto del chat seleccionado a otro agente; crea una continuación separada.",
+            "El proyecto se llama 'Proyecto - From Origen' y conserva la carpeta de código.",
+            "y guarda su ruta JSON; agent-hub open --route-file abre esa conversación exacta.",
             "j/k en carpetas solo cambia la selección; la lista derecha permanece igual.",
             "l, Enter o Tab en carpeta: entra a sus conversaciones. h: vuelve a carpetas.",
             "j/k en conversaciones: elige chat. Enter: continúa la MISMA conversación.",
@@ -291,7 +331,7 @@ class Hub:
             "Las carpetas creadas aquí son locales al hub; no hay sincronización de dos vías.",
             "No elimina chats ni modifica el índice de Codex. No lee credenciales.",
             "El hub no usa red. Codex conserva su propia configuración e integraciones.",
-            "Actualización manual: codex-hub update (conecta solo con tu repo GitHub).",
+            "Actualización manual: agent-hub update (conecta solo con tu repo GitHub).",
             "j/k desplaza esta ayuda; Enter o Esc vuelve.",
         ]
         offset = 0
@@ -327,7 +367,19 @@ class Hub:
                 height, width = self.screen.getmaxyx()
                 if height < 16 or width < 66:
                     continue
-                if key in ("h", curses.KEY_LEFT):
+                if key == "A" and self.manager:
+                    self.next_agent = "select"
+                    return
+                elif key == "x" and chat and self.focus:
+                    self.transfer_chat(chat)
+                    if self.next_agent:
+                        return
+                elif key == "y" and chat and self.focus and self.manager:
+                    from .manager import private_json
+                    path = self.manager.state/"last-route.json"
+                    private_json(path, self.manager.route(self.adapter.id, chat, self.projects))
+                    self.message = "Ruta guardada en " + str(path)
+                elif key in ("h", curses.KEY_LEFT):
                     self.focus = 0
                 elif key == "\t":
                     if self.focus:

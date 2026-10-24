@@ -5,8 +5,8 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from codex_hub.store import Chat, Library, Project
-from codex_hub.ui import Hub
+from agent_hub.store import Chat, Library, Project
+from agent_hub.ui import Hub
 
 
 class Screen:
@@ -40,7 +40,7 @@ class NavigationTests(unittest.TestCase):
         projects = [Project("one", "One", ("/tmp/one",)), Project("two", "Two", ("/tmp/two",))]
         chats = [Chat("a", "Older one", "/tmp/one", 1), Chat("b", "Newer one", "/tmp/one", 2),
                  Chat("c", "Two chat", "/tmp/two", 3)]
-        with patch("codex_hub.ui.curses.curs_set"), patch("codex_hub.ui.curses.has_colors", return_value=False):
+        with patch("agent_hub.ui.curses.curs_set"), patch("agent_hub.ui.curses.has_colors", return_value=False):
             hub = Hub(screen, Library(None), chats, "/not-used", demo=True, projects=projects)
         return hub, screen
 

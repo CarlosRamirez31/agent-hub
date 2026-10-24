@@ -16,8 +16,8 @@ import unittest
 import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from codex_hub.navigation import sidebar
-from codex_hub.store import Chat, Library, Project, project_catalog, project_for, read_chats, read_projects, visible
+from agent_hub.navigation import sidebar
+from agent_hub.store import Chat, Library, Project, project_catalog, project_for, read_chats, read_projects, visible
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -121,7 +121,7 @@ class ProjectTests(unittest.TestCase):
             env = {**os.environ, "CODEX_HOME": str(data), "XDG_STATE_HOME": str(root / "state")}
 
             def open_count(expected):
-                result = subprocess.run([str(ROOT / "bin/codex-hub"), "--count"], env=env,
+                result = subprocess.run([str(ROOT / "bin/agent-hub"), "--agent", "codex", "--count"], env=env,
                                         capture_output=True, text=True, check=True)
                 self.assertIn(expected, result.stdout)
                 self.assertEqual(state.read_bytes(), saved)
@@ -148,7 +148,7 @@ class FolderPickerTests(unittest.TestCase):
             folder.mkdir()
             env = {**os.environ, "TERM": "xterm-256color", "CODEX_HOME": str(root / "codex"),
                    "XDG_STATE_HOME": str(root / "state"), "PYTHONDONTWRITEBYTECODE": "1"}
-            library_path = root / "state/codex-hub/library.json"
+            library_path = root / "state/agent-hub/libraries/codex.json"
             record = root / "arguments.json"
             stub = root / "codex"
             stub.write_text("#!" + sys.executable + "\nimport sys,json,os\nfrom pathlib import Path\n"
@@ -160,7 +160,7 @@ class FolderPickerTests(unittest.TestCase):
             def session(add):
                 master, slave = pty.openpty()
                 fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 28, 120, 0, 0))
-                process = subprocess.Popen([str(ROOT / "bin/codex-hub")], stdin=slave, stdout=slave,
+                process = subprocess.Popen([str(ROOT / "bin/agent-hub"), "--agent", "codex"], stdin=slave, stdout=slave,
                                            stderr=slave, env=env, cwd=ROOT)
                 os.close(slave)
                 output = bytearray()
@@ -186,7 +186,7 @@ class FolderPickerTests(unittest.TestCase):
                     self.assertTrue(path.exists(), output.decode(errors="replace")[-2500:])
 
                 try:
-                    wait_for(b"CODEX HUB")
+                    wait_for(b"AGENT HUB")
                     if add:
                         os.write(master, b"p/\x15" + str(folder).encode() + b"\n ")
                         wait_file(library_path)
