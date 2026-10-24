@@ -8,7 +8,7 @@ Tus agentes, carpetas y conversaciones en una terminal. Un solo agente entra dir
 
  PROYECTOS                         │ PPE - From Codex · 1
    ▸ PPE (2)                       │ Preparar métricas · From Codex
-   ▸ PPE - From Codex (1)           │   23 oct 20:30 · ~/proyectos/ppe
+   ▸ PPE - From Codex (1)          │   23 oct 20:30 · ~/proyectos/ppe
    + Agregar carpeta               │
    Recientes (3)                   │
    ★ Favoritos                     │
