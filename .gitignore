@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+.venv/
+.coverage
+*.sqlite*
+library.json
+.env
+.env.*
