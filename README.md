@@ -6,14 +6,20 @@ Tus conversaciones de Codex en una interfaz de terminal con proyectos, secciones
  ◈ CODEX HUB         tu espacio de conversaciones
  LOCAL · sin telemetría
 
- ESPACIOS                 │ CONVERSACIONES
-   Todos los chats        │ ★ Mi configuración de Neovim
-   ★ Favoritos            │   23 oct 20:30 · ~/proyectos/dotfiles
-   § Personal             │
-   ▸ codex-hub            │   Panel de chats y proyectos
-   ▸ dotfiles             │   23 oct 19:15 · ~/proyectos/codex-hub
+ PROYECTOS                         │ CONVERSACIONES
+   ▾ dotfiles (2)                  │ Mi configuración de Neovim
+       Mi configuración de Neovim  │   23 oct 20:30 · ~/proyectos/dotfiles
+       Ajustar los atajos          │
+   ▾ codex-hub (0)                 │ Ajustar los atajos
+       + Nueva conversación        │   23 oct 19:15 · ~/proyectos/dotfiles
+   + Agregar carpeta               │
+   RECIENTES                       │
+     Mi configuración de Neovim     │
+     Ajustar los atajos             │
+   ★ Favoritos                     │
+   ▸ Otras carpetas (1)            │
 
- h/l panel · j/k mover · Enter abrir · / buscar · n nuevo · q salir
+ j/k mover · h/l árbol · Tab panel · Enter abrir/plegar · p carpeta · n chat
 ```
 
 ## Instalar tu versión
@@ -39,12 +45,15 @@ Para probar sin instalar ni abrir chats reales:
 
 | Tecla | Acción |
 |---|---|
-| `h/l`, izquierda/derecha, `Tab` | Cambiar panel |
+| `h/l`, izquierda/derecha | Plegar/expandir proyecto; `h` vuelve desde un chat al proyecto |
+| `Tab` | Cambiar entre árbol y lista de conversaciones |
 | `j/k`, arriba/abajo | Navegar |
 | `g/G` | Ir al principio/final |
-| `Enter` | Entrar al panel o continuar el chat seleccionado |
-| `/`, `Esc` | Buscar por título/carpeta y limpiar búsqueda |
-| `n` | Chat nuevo: confirmar o escribir carpeta; `Ctrl+U` limpia |
+| `Enter` | Plegar/expandir proyecto, abrir chat, activar «Ver más» o «Agregar carpeta» |
+| `p` | Agregar carpeta con un selector de directorios |
+| `n` | Chat nuevo en el proyecto seleccionado: confirmar o escribir carpeta; `Ctrl+U` limpia |
+| `t` | Saltar a recientes, ordenados por última actividad |
+| `/`, `Esc` | Buscar globalmente por título/carpeta y limpiar búsqueda |
 | espacio | Marcar/desmarcar favorito |
 | `s` | Crear sección |
 | `m` | Mover chat a una sección; vacío quita la asignación |
@@ -53,14 +62,20 @@ Para probar sin instalar ni abrir chats reales:
 | `R` | Refrescar el índice |
 | `?`, `q` | Ayuda y salir |
 
-Los favoritos, títulos y secciones pertenecen al hub y no cambian la organización de la app de Codex. Las carpetas de proyecto se descubren desde los chats existentes; `n` permite usar una carpeta nueva.
+El panel importa **los proyectos ya registrados en Codex**, con sus nombres, orden y carpetas. Muestra debajo sus conversaciones; cinco inicialmente y luego «Ver más». Los recientes aparecen también en una lista independiente. Los proyectos se pueden plegar y expandir.
+
+Para agregar un proyecto sin conversaciones, pulsa `p` o selecciona **+ Agregar carpeta**. En el selector, `j/k` navega, `Enter/l` entra, `h` sube, `.` muestra carpetas ocultas y `/` permite escribir una ruta (`Ctrl+U` limpia). **Espacio agrega la carpeta abierta**; `Esc` cancela. No crea ni borra directorios. El proyecto se conserva al reiniciar el hub y `n` inicia su primera conversación en esa ruta.
+
+El hub usa la asociación de proyecto de Codex cuando está disponible; en los demás casos asigna cada chat a la raíz de proyecto más específica que contiene su carpeta, incluidas subcarpetas. Admite proyectos con varias raíces. Las carpetas con chats que no pertenecen a un proyecto registrado se encuentran bajo **Otras carpetas**; sus conversaciones también están en recientes. Las carpetas registradas varias veces por la misma ruta o un enlace simbólico no se duplican en el hub.
+
+Los proyectos agregados desde el hub, favoritos, títulos y secciones se guardan en su propia biblioteca local. No modifican la organización de la app de Codex. `R` vuelve a importar los proyectos y chats desde disco. En proyectos con varias raíces, `n` propone la primera; puedes cambiar la ruta antes de iniciar Codex.
 
 Al abrir un chat, el hub cede la terminal al **Codex CLI real** usando su ID y carpeta. Al salir de Codex (`/quit`), vuelve al selector. La primera versión no mantiene el panel lateral visible mientras escribes en Codex ni gestiona varias terminales simultáneas. Evita abrir en dos sitios una conversación que ya esté en uso.
 
 ## Privacidad y conexiones
 
 - El hub no hace conexiones de red al explorar, buscar u organizar. No hay telemetría, anuncios, rastreadores, servidor web, comprobaciones automáticas de actualización ni dependencias de terceros.
-- Lee solo cinco columnas del índice SQLite local de Codex: ID, título, carpeta, fecha y estado de archivado. Abre la base en **solo lectura**. No lee credenciales, transcripciones ni resultados de herramientas.
+- Lee solo metadatos del índice SQLite local de Codex: ID, título, carpeta, fecha, estado de archivado y asociación de proyecto; además de nombres, orden y rutas de los proyectos. Abre la base en **solo lectura**. No lee credenciales, transcripciones ni resultados de herramientas.
 - Guarda su organización en `${XDG_STATE_HOME:-~/.local/state}/codex-hub/library.json`, con permisos `0600` al escribir. No incluye ese estado en el repositorio.
 - El modo `--demo` usa datos ficticios y memoria: no lee el índice ni escribe la biblioteca.
 - **Codex sigue conectándose a OpenAI y conserva su configuración**, incluidas integraciones, MCP y plugins que tú ya hayas configurado. El hub no instala ni activa servicios adicionales y no bloquea el tráfico de Codex ni de sus herramientas. No es un sandbox de red.
@@ -85,7 +100,7 @@ python3 -B -m unittest discover -s tests -v
 ./bin/codex-hub --demo
 ```
 
-`--count` verifica acceso al índice sin mostrar títulos ni carpetas. Si no existe todavía una base de Codex, el hub muestra una biblioteca vacía.
+`--count` muestra la cantidad de conversaciones y proyectos importados sin revelar títulos ni carpetas. Si no existe todavía una base de Codex, el hub muestra la biblioteca local y permite agregar carpetas vacías.
 
 Para desinstalar el comando, elimina únicamente el enlace `~/.local/bin/codex-hub`. Tus chats de Codex y la organización local se conservan.
 

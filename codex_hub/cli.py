@@ -11,7 +11,7 @@ import sys
 import uuid
 
 from . import __version__
-from .store import Chat, Library, read_chats
+from .store import Chat, Library, Project, read_chats, read_projects
 
 ROOT = Path(__file__).resolve().parents[1]
 UPSTREAM = "https://github.com/CarlosRamirez31/codex-hub.git"
@@ -70,15 +70,19 @@ def main(argv=None):
                          ("Panel de chats y proyectos", "codex-hub"),
                          ("Preparar la próxima versión", "codex-hub"),
                          ("Ideas para el portafolio", "portfolio")])]
+            projects = [Project("demo-dotfiles", "dotfiles", ("/demo/dotfiles",)),
+                        Project("demo-hub", "codex-hub", ("/demo/codex-hub",)),
+                        Project("demo-empty", "Proyecto nuevo", ("/demo/nuevo",))]
         else:
             chats = read_chats(home)
+            projects = read_projects(home)
         if args.count:
-            print(f"{len(chats)} conversaciones en el índice local. Solo lectura.")
+            print(f"{len(chats)} conversaciones y {len(projects)} proyectos de Codex en el índice local. Solo lectura.")
             return 0
         if not sys.stdin.isatty() or not sys.stdout.isatty():
             raise ValueError("Abre codex-hub en una terminal interactiva; usa --count para comprobar el índice.")
         from .ui import Hub
-        curses.wrapper(lambda screen: Hub(screen, library, chats, home, args.demo).run())
+        curses.wrapper(lambda screen: Hub(screen, library, chats, home, args.demo, projects).run())
         return 0
     except (OSError, ValueError, sqlite3.Error, curses.error, subprocess.CalledProcessError) as error:
         print(f"codex-hub: {error}", file=sys.stderr)
