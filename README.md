@@ -41,6 +41,8 @@ El registro incluye lectores para Codex, Hermes, Claude Code, Gemini CLI y el fo
 
 ## Colores y estilo
 
+Pulsa **`S` dentro de la app**, tanto en el selector de agentes como en el menú principal, para abrir los **ajustes de colores con vista previa en vivo**. Usa `j/k` para elegir entre tema, títulos, detalles y texto/fondo de selección; `h/l` cambia el valor. `Enter` guarda y aplica inmediatamente; `Esc` cancela y restaura los colores anteriores. En `--demo` puedes probarlos sin guardar.
+
 El selector de agentes, el menú principal y el selector de destino comparten la misma paleta. El tema predeterminado conserva el cian y magenta del menú original; el fondo general lo proporciona tu terminal.
 
 ```sh
@@ -52,7 +54,7 @@ agent-hub style --preset mono    # sin colores, selección invertida
 agent-hub style                  # consultar colores y ubicación del archivo
 ```
 
-Los cambios se aplican al volver a abrir `agent-hub`. Para personalizar los colores, guarda un tema y edita `${XDG_CONFIG_HOME:-~/.config}/agent-hub/style.json`:
+Los cambios hechos desde el CLI se aplican al volver a abrir `agent-hub`; los ajustes dentro de la app se aplican al guardar. Para personalizar los colores, guarda un tema y edita `${XDG_CONFIG_HOME:-~/.config}/agent-hub/style.json`:
 
 ```json
 {
@@ -80,6 +82,7 @@ Los cambios se aplican al volver a abrir `agent-hub`. Para personalizar los colo
 | `f` | Fork nativo, cuando el agente lo admite |
 | `x` | Pasar el contexto seleccionado a otro agente y abrir la continuación |
 | `A` | Cambiar de agente |
+| `S` | Ajustes de colores con vista previa, guardar o cancelar |
 | `y` | Guardar la ruta JSON del chat en el estado local |
 | `p` | Agregar una carpeta, aunque no tenga chats |
 | `n` | Nueva conversación en la carpeta seleccionada |

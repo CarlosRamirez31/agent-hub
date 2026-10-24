@@ -42,7 +42,7 @@ def update():
 
 def choose_agent(screen, agents, title="AGENT HUB · ELIGE AGENTE"):
     from .ui import clean
-    from .style import Style
+    from .style import Style, edit_style
     style = Style()
     index = 0
     screen.keypad(True)
@@ -66,12 +66,14 @@ def choose_agent(screen, agents, title="AGENT HUB · ELIGE AGENTE"):
         for i, agent in enumerate(agents[offset:offset+room], offset):
             line(3+i-offset, (("> " if i == index else "  ") + agent.name + " · " + agent.id).ljust(max(1, width-3)),
                  (style.color(2) | curses.A_BOLD) if i == index else curses.A_NORMAL)
-        line(height-2, "j/k elige · Enter/l entra · Esc/q cancela", curses.A_DIM)
+        line(height-2, "j/k elige · Enter/l entra · S colores · Esc/q cancela", curses.A_DIM)
         screen.refresh()
         key = screen.get_wch()
         if key in ("q", "\x1b"):
             return None
-        if key in ("j", curses.KEY_DOWN):
+        if key == "S":
+            style = Style(edit_style(screen, style))
+        elif key in ("j", curses.KEY_DOWN):
             index = min(len(agents)-1, index+1)
         elif key in ("k", curses.KEY_UP):
             index = max(0, index-1)

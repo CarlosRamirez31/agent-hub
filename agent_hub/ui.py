@@ -8,7 +8,7 @@ import unicodedata
 
 from .store import normalize, project_catalog, read_chats, read_projects, visible
 from .navigation import sidebar
-from .style import Style
+from .style import Style, edit_style
 
 
 def clean(value):
@@ -122,7 +122,7 @@ class Hub:
         detail = " · ".join(project.roots) if project else "Recientes" if self.group[0] == "recent" else self.group[1]
         self.put(height-5, side+3, ("Buscar: " + self.query) if self.query else detail, self.color(3))
         self.put(height-3, 2, self.message, self.color(1))
-        self.put(height-2, 2, "j/k mover · l entrar · h volver · Enter continuar · f copia · p carpeta · n chat · q salir", curses.A_DIM)
+        self.put(height-2, 2, "j/k mover · l entrar · h volver · Enter continuar · f copia · p carpeta · S colores · q salir", curses.A_DIM)
         self.put(height-1, 2, "/ buscar · t recientes · x pasar contexto · A agentes · y ruta JSON · R sincronizar · ? ayuda", curses.A_DIM)
         self.screen.refresh()
 
@@ -298,6 +298,7 @@ class Hub:
         height, width = self.screen.getmaxyx()
         lines = [
             "AGENT HUB · AYUDA",
+            "S: ajustes de colores con vista previa. Enter guarda; Esc cancela.",
             "Con un agente entras directamente; con varios eliges. A cambia de agente.",
             "x pasa contexto del chat seleccionado a otro agente; crea una continuación separada.",
             "El proyecto se llama 'Proyecto - From Origen' y conserva la carpeta de código.",
@@ -357,7 +358,9 @@ class Hub:
                 height, width = self.screen.getmaxyx()
                 if height < 16 or width < 66:
                     continue
-                if key == "A" and self.manager:
+                if key == "S":
+                    self.style = Style(edit_style(self.screen, self.style, persist=not self.demo))
+                elif key == "A" and self.manager:
                     self.next_agent = "select"
                     return
                 elif key == "x" and chat and self.focus:

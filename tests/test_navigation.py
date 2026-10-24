@@ -44,6 +44,16 @@ class NavigationTests(unittest.TestCase):
             hub = Hub(screen, Library(None), chats, "/not-used", demo=True, projects=projects)
         return hub, screen
 
+    def test_style_settings_return_without_changing_navigation(self):
+        hub, screen = self.make_hub()
+        original_style = hub.style
+        screen.events = ['j', 'S', 'q']
+        with patch('agent_hub.ui.edit_style', return_value=hub.style.config) as editor, \
+             patch('curses.has_colors', return_value=False):
+            hub.run()
+        editor.assert_called_once_with(screen, original_style, persist=False)
+        self.assertEqual((hub.nav, hub.focus, hub.group), (1, 0, ('recent', '')))
+
     def test_hovering_preserves_active_list_and_selection_until_l_enters_folder(self):
         hub, screen = self.make_hub()
 
