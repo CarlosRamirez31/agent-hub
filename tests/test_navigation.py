@@ -55,6 +55,17 @@ class NavigationTests(unittest.TestCase):
             hub.run()
         prompt.assert_called_once_with('Escribe ELIMINAR')
 
+    def test_delete_last_chat_returns_focus_to_folders_and_shortcuts_keep_working(self):
+        hub, screen = self.make_hub()
+        def empty_folder():
+            self.assertEqual(hub.current(), [])
+            self.assertEqual(hub.focus, 0)
+        def moved():
+            self.assertEqual(hub.nav, 2)
+        screen.events = ['j', 'l', 'd', 'c', empty_folder, '\x18', 'j', moved, 'q']
+        with patch.object(hub, 'prompt', return_value='ELIMINAR'):
+            hub.run()
+
     def test_demo_folder_delete_never_touches_files_or_calls_backend(self):
         hub, screen = self.make_hub()
         screen.events = ['d', 'q']

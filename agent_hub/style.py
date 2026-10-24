@@ -4,6 +4,8 @@ import json
 import os
 from pathlib import Path
 
+from .terminal import read_key
+
 PRESETS = {
     "cyan": {"accent": "cyan", "secondary": "magenta", "selection_fg": "black", "selection_bg": "cyan"},
     "violet": {"accent": "magenta", "secondary": "cyan", "selection_fg": "black", "selection_bg": "magenta"},
@@ -117,7 +119,7 @@ def edit_style(screen, current, persist=True):
                 line(height-3, message, preview.color(1))
             line(height-2, "j/k opción · h/l color · Enter guardar · Esc cancelar", curses.A_DIM)
             screen.refresh()
-            key = screen.get_wch()
+            key = read_key(screen)
             if key in ("q", "\x1b"):
                 return current.config
             if height < 16 or width < 40:

@@ -13,6 +13,7 @@ import uuid
 
 from . import __version__
 from .store import Chat, Library, Project
+from .terminal import prepare_input, read_key
 
 ROOT = Path(__file__).resolve().parents[1]
 UPSTREAM = "https://github.com/CarlosRamirez31/agent-hub.git"
@@ -45,11 +46,7 @@ def choose_agent(screen, agents, title="AGENT HUB · ELIGE AGENTE"):
     from .style import Style, edit_style
     style = Style()
     index = 0
-    screen.keypad(True)
-    try:
-        curses.curs_set(0)
-    except curses.error:
-        pass
+    prepare_input(screen)
     while True:
         screen.erase()
         height, width = screen.getmaxyx()
@@ -68,7 +65,7 @@ def choose_agent(screen, agents, title="AGENT HUB · ELIGE AGENTE"):
                  (style.color(2) | curses.A_BOLD) if i == index else curses.A_NORMAL)
         line(height-2, "j/k elige · Enter/l entra · S colores · Esc/q cancela", curses.A_DIM)
         screen.refresh()
-        key = screen.get_wch()
+        key = read_key(screen)
         if key in ("q", "\x1b"):
             return None
         if key == "S":

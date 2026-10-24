@@ -64,7 +64,8 @@ class Agent:
         command = ["podman", "exec", self.container, "python3", self.map_path(script),
                    "bridge", "--request", json.dumps(request)]
         try:
-            result = subprocess.run(command, capture_output=True, text=True, timeout=20, check=False)
+            result = subprocess.run(command, stdin=subprocess.DEVNULL, start_new_session=True,
+                                    capture_output=True, text=True, timeout=20, check=False)
         except subprocess.TimeoutExpired as error:
             raise ValueError(self.name + ": el contenedor no respondió a tiempo.") from error
         if result.returncode:
@@ -210,7 +211,8 @@ def bridge_request(request):
 
 def run_delete(command, name, env=None):
     try:
-        result = subprocess.run(command, capture_output=True, text=True, check=False, timeout=30, env=env)
+        result = subprocess.run(command, stdin=subprocess.DEVNULL, start_new_session=True,
+                                capture_output=True, text=True, check=False, timeout=30, env=env)
     except subprocess.TimeoutExpired as error:
         raise ValueError(name + ": eliminación sin confirmar por timeout; actualiza el índice antes de reintentar.") from error
     if result.returncode:

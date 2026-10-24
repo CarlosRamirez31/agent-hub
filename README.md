@@ -93,8 +93,11 @@ Los cambios hechos desde el CLI se aplican al volver a abrir `agent-hub`; los aj
 | `s`, `m`, `r` | Crear sección, asignar sección y cambiar título local |
 | `a`, `R` | Alternar archivados y revisar cambios del índice |
 | `?`, `q` | Ayuda y salir |
+| `Ctrl+C` | Salir del hub restaurando la terminal |
 
 En el selector de carpetas, `j/k` navega, `Enter/l` entra, `h` sube, `.` muestra ocultas y `/` permite escribir la ruta. **Espacio agrega la carpeta abierta** y `Esc` cancela. No crea ni borra directorios de código.
+
+Dentro de los menús, las combinaciones `Ctrl` sin asignar (como `Ctrl+X`) se ignoran; `Ctrl+S` y `Ctrl+Z` no pausan ni suspenden la interfaz. Tras eliminar el último chat de una vista, el foco vuelve a las carpetas para seguir navegando con `j/k`. Los comandos internos de consulta y borrado no reciben el teclado del menú.
 
 Al abrir un chat, el hub cede la terminal al agente real. Sal del CLI con su comando de salida (por ejemplo `/quit` en Codex y Hermes) para volver al menú. No mantiene un panel lateral visible mientras estás escribiendo dentro del agente. Los bloqueos de una conversación abierta en otra app los gestiona su agente: cierra la sesión allí y reintenta; el hub no fuerza bloqueos.
 

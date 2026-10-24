@@ -15,6 +15,7 @@ class CodexReader:
             raise ValueError("Se necesita Codex para exportar su historial paginado.")
         self.process = subprocess.Popen([executable, "app-server", "--listen", "stdio://"],
                                         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                        start_new_session=True,
                                         env={**os.environ, "CODEX_HOME": str(home)})
         self.timeout, self.sequence, self.buffer = timeout, 0, b""
 

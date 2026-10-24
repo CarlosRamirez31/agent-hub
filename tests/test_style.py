@@ -60,6 +60,7 @@ class StyleTests(unittest.TestCase):
             def __init__(self, keys):
                 self.keys = iter(keys)
                 self.frames = []
+            def keypad(self, value): pass
             def erase(self): pass
             def refresh(self): pass
             def getmaxyx(self): return 28, 120

@@ -10,6 +10,7 @@ import unicodedata
 from .store import normalize, project_catalog, read_chats, read_projects, visible
 from .navigation import sidebar
 from .style import Style, edit_style
+from .terminal import prepare_input, read_key
 
 
 def clean(value):
@@ -32,11 +33,7 @@ class Hub:
         self.archives = False
         self.message = "j/k elige carpeta · l entra · Enter continúa el chat · h vuelve"
         self.style = Style()
-        try:
-            curses.curs_set(0)
-        except curses.error:
-            pass
-        self.screen.keypad(True)
+        prepare_input(self.screen)
 
     def color(self, pair):
         return self.style.color(pair)
@@ -54,8 +51,8 @@ class Hub:
 
     def sync(self):
         rows = self.rows()
-        self.nav = min(self.nav, len(rows)-1)
-        self.selected = min(self.selected, max(0, len(self.current())-1))
+        self.nav = max(0, min(self.nav, len(rows)-1))
+        self.selected = max(0, min(self.selected, max(0, len(self.current())-1)))
         return rows
 
     def enter_space(self, row):
@@ -86,7 +83,7 @@ class Hub:
         self.put(1, 23, self.adapter.name if self.adapter else "tu espacio de conversaciones", curses.A_DIM)
         self.put(2, 2, "DEMO · datos ficticios" if self.demo else "LOCAL · sin telemetría", self.color(3))
         chats = self.current()
-        self.selected = min(self.selected, max(0, len(chats)-1))
+        self.selected = max(0, min(self.selected, max(0, len(chats)-1)))
         side = max(28, min(60, width*45//100))
         self.put(4, 2, "PROYECTOS", curses.A_BOLD if self.focus == 0 else curses.A_DIM)
         active_project = next((p for p in self.projects if self.group == ("project", p.id)), None)
@@ -137,7 +134,7 @@ class Hub:
             self.screen.clrtoeol()
             self.put(height-3, 2, label + ": " + text, self.color(1), width-3)
             self.screen.refresh()
-            key = self.screen.get_wch()
+            key = read_key(self.screen)
             if key in ("\n", "\r", curses.KEY_ENTER):
                 return text.strip()
             if key == "\x1b":
@@ -198,7 +195,7 @@ class Hub:
             if height < 12 or width < 40:
                 self.put(0, 0, "Amplía la terminal. Esc cancela.")
                 self.screen.refresh()
-                if self.screen.get_wch() in ("q", "\x1b"):
+                if read_key(self.screen) in ("q", "\x1b"):
                     return None
                 continue
             self.put(1, 2, "AGREGAR CARPETA", curses.A_BOLD | self.color(1))
@@ -212,7 +209,7 @@ class Hub:
             self.put(height-3, 2, notice or "Espacio agrega la carpeta abierta, aunque no tenga conversaciones.", self.color(1))
             self.put(height-2, 2, "j/k mover · Enter/l entrar · h subir · espacio agregar · / ruta · . ocultas · Esc cancelar", curses.A_DIM)
             self.screen.refresh()
-            key = self.screen.get_wch()
+            key = read_key(self.screen)
             if key in ("q", "\x1b"):
                 return None
             if key == " ":
@@ -308,7 +305,7 @@ class Hub:
                 self.put(y, 2, line)
             self.put(height-2, 2, "j/k revisar · c confirmar · Esc/q cancelar", curses.A_DIM)
             self.screen.refresh()
-            key = self.screen.get_wch()
+            key = read_key(self.screen)
             if key in ("q", "\x1b"):
                 return False
             if key in ("j", curses.KEY_DOWN):
@@ -334,6 +331,8 @@ class Hub:
                 else:
                     raise ValueError("La eliminación necesita un gestor de agentes.")
                 self.reload()
+                if not self.current():
+                    self.focus = 0
                 self.message = "Conversación eliminada." + (" Solo datos ficticios." if self.demo else "")
             else:
                 self.message = "Eliminación cancelada."
@@ -371,6 +370,7 @@ class Hub:
         lines = [
             "AGENT HUB · AYUDA",
             "d: eliminar chat original; en carpetas borra archivos y conversaciones de todos los agentes. Siempre pide confirmación escrita.",
+            "Ctrl-C sale del hub. Las combinaciones Ctrl sin asignar se ignoran; no suspenden el menú.",
             "S: ajustes de colores con vista previa. Enter guarda; Esc cancela.",
             "Con un agente entras directamente; con varios eliges. A cambia de agente.",
             "x pasa contexto del chat seleccionado a otro agente; crea una continuación separada.",
@@ -409,18 +409,19 @@ class Hub:
                 self.put(row, 2, line)
             self.put(height-1, 2, "j/k desplaza · Enter/Esc vuelve", self.color(1))
             self.screen.refresh()
-            key = self.screen.get_wch()
+            key = read_key(self.screen)
             if key in ("j", curses.KEY_DOWN):
                 offset += 1
             elif key in ("k", curses.KEY_UP):
                 offset = max(0, offset-1)
-            else:
+            elif key in ("\n", "\r", curses.KEY_ENTER, "\x1b", "q", "h"):
                 return
 
     def run(self):
         while True:
+            prepare_input(self.screen)
             self.draw()
-            key = self.screen.get_wch()
+            key = read_key(self.screen)
             rows = self.rows()
             row = rows[self.nav]
             chats = self.current()
