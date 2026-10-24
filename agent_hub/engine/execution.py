@@ -81,7 +81,7 @@ def parse_result(profile, raw):
             tokens = sum(values)
     from ..agents import check_id
     check_id(native)
-    return {'text':'\n\n'.join(answer),'native_id':native,'tokens':tokens,'cost':None, **({'error':str(failure)} if failure else {})}
+    return {'text':('' if kind=='gemini-jsonl' else '\n\n').join(answer),'native_id':native,'tokens':tokens,'cost':None, **({'error':str(failure)} if failure else {})}
 
 
 class Runner:

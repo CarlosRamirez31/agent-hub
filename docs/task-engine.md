@@ -414,3 +414,17 @@ aprobaciones, commits/merges en fixtures, cancelación, límites y continuación
 exacta. Las pruebas no consumen tokens de modelos reales. Gemini tiene fixtures
 basados en su [protocolo headless](https://geminicli.com/docs/cli/headless/), pero
 requiere validar la versión instalada antes de confiar en un proveedor nuevo.
+
+## Gemini CLI 0.65
+
+El instalador local registra `gemini` y `gemini-reviewer` mediante `work init`.
+No necesita modificar el registro nativo por defecto. La autenticación se realiza
+primero con `gemini` → Sign in with Google; `/auth` vuelve a ese selector.
+Se respeta la elección de confianza de carpetas, sandbox y permisos nativos.
+
+El formato `gemini-jsonl` captura `init.session_id`, concatena exactamente los
+fragmentos assistant y conserva errores junto al ID conocido. Un reviewer que
+devuelva JSON en varios fragmentos mantiene así su resultado estructurado válido.
+La apertura de una ejecución usa ese ID, nunca el índice `latest`. Las fixtures
+incluyen varias conversaciones de una misma carpeta, eliminación de la elegida,
+cuota, worker/reviewer y rechazo de texto de usuario/herramientas en el resultado.
