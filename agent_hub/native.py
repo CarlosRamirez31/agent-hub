@@ -48,7 +48,7 @@ def json_lines(path):
                 yield row
 
 
-def read_index(kind, home):
+def read_index(kind, home, include_hidden=False):
     home = Path(home).expanduser()
     if kind == "codex":
         return read_chats(home), read_projects(home)
@@ -63,7 +63,7 @@ def read_index(kind, home):
                 raise ValueError("El formato del índice de Hermes cambió.")
             updated = "COALESCE(last_activity_at, started_at)" if "last_activity_at" in columns else "started_at"
             archived = "archived" if "archived" in columns else "0"
-            condition = " WHERE hidden=0" if "hidden" in columns else ""
+            condition = " WHERE hidden=0" if "hidden" in columns and not include_hidden else ""
             rows = conn.execute(f"SELECT id,title,cwd,{updated},{archived} FROM sessions" + condition).fetchall()
         return [Chat(str(i), title or "Hermes", cwd or str(Path.home()), timestamp(t), bool(a))
                 for i, title, cwd, t, a in rows], []

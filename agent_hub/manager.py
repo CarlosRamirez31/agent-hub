@@ -69,7 +69,9 @@ class Manager:
         return result
 
     def snapshot(self, ident):
-        return self.cache.snapshot(ident)
+        chats, projects = self.cache.snapshot(ident)
+        removed = self.library(ident).data.get("removed_projects", [])
+        return chats, [p for p in projects if p.id not in removed]
 
     def route(self, agent, chat, projects):
         folder = project_for(chat, projects)

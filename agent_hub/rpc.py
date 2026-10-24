@@ -1,4 +1,4 @@
-"""Bounded, read-only requests over the installed Codex app-server's stdio."""
+"""Bounded requests over the installed Codex app-server's stdio."""
 
 import json
 import os
@@ -48,7 +48,7 @@ class CodexReader:
                     raise ValueError("Codex: " + str(response["error"].get("message", "Error al leer historial")))
                 return response.get("result", {})
             if "id" in response and "method" in response:
-                self.send({"id": response["id"], "error": {"code": -32601, "message": "Read-only client"}})
+                self.send({"id": response["id"], "error": {"code": -32601, "message": "Unsupported client request"}})
         raise ValueError("Codex no respondió a tiempo al leer el historial.")
 
     def close(self):
@@ -88,5 +88,18 @@ def codex_messages(home, ident):
             if cursor in seen:
                 raise ValueError("Codex repitió un cursor de historial; exportación cancelada.")
             seen.add(cursor)
+    finally:
+        reader.close()
+
+
+def codex_delete(home, ident, project=False):
+    """Delete only the caller-confirmed exact native ID through Codex itself."""
+    reader = CodexReader(home)
+    try:
+        reader.call("initialize", {"clientInfo": {"name": "agent_hub", "title": "Agent Hub", "version": "0.4.0"},
+                                   "capabilities": {"experimentalApi": True}})
+        reader.send({"method": "initialized", "params": {}})
+        return reader.call("project/delete" if project else "thread/delete",
+                           {"projectId" if project else "threadId": ident})
     finally:
         reader.close()

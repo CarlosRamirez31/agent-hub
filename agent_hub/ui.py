@@ -1,6 +1,7 @@
 """Original curses UI. No plugins, webviews, analytics, or network calls."""
 
 import curses
+import sqlite3
 from datetime import datetime
 from pathlib import Path
 import textwrap
@@ -122,7 +123,7 @@ class Hub:
         detail = " · ".join(project.roots) if project else "Recientes" if self.group[0] == "recent" else self.group[1]
         self.put(height-5, side+3, ("Buscar: " + self.query) if self.query else detail, self.color(3))
         self.put(height-3, 2, self.message, self.color(1))
-        self.put(height-2, 2, "j/k mover · l entrar · h volver · Enter continuar · f copia · p carpeta · S colores · q salir", curses.A_DIM)
+        self.put(height-2, 2, "j/k mover · l entrar · h volver · Enter continuar · f copia · p carpeta · d eliminar · S colores · q salir", curses.A_DIM)
         self.put(height-1, 2, "/ buscar · t recientes · x pasar contexto · A agentes · y ruta JSON · R sincronizar · ? ayuda", curses.A_DIM)
         self.screen.refresh()
 
@@ -153,6 +154,7 @@ class Hub:
             if self.manager:
                 self.manager.sync([self.adapter.id])
                 self.chats, self.imported = self.manager.snapshot(self.adapter.id)
+                self.library = self.manager.library(self.adapter.id)
             else:
                 self.chats = read_chats(self.home)
                 self.imported = read_projects(self.home)
@@ -293,11 +295,82 @@ class Hub:
             self.screen.clear()
         self.next_agent = target
 
+    def confirm_delete(self, lines, phrase):
+        offset = 0
+        while True:
+            self.screen.erase()
+            height, width = self.screen.getmaxyx()
+            self.put(1, 2, "ELIMINAR · CONFIRMACIÓN", self.color(1) | curses.A_BOLD)
+            wrapped = [part for line in lines for part in [*textwrap.wrap(clean(line), max(20, width-4)), ""]]
+            room = max(1, height-8)
+            offset = min(offset, max(0, len(wrapped)-room))
+            for y, line in enumerate(wrapped[offset:offset+room], 3):
+                self.put(y, 2, line)
+            self.put(height-2, 2, "j/k revisar · c confirmar · Esc/q cancelar", curses.A_DIM)
+            self.screen.refresh()
+            key = self.screen.get_wch()
+            if key in ("q", "\x1b"):
+                return False
+            if key in ("j", curses.KEY_DOWN):
+                offset += 1
+            elif key in ("k", curses.KEY_UP):
+                offset = max(0, offset-1)
+            elif key == "c" and height >= 12 and width >= 40:
+                return self.prompt("Escribe " + phrase) == phrase
+
+    def delete_selected(self, row, chat):
+        from .deletion import delete_chat, delete_folder, folder_plan
+        if self.focus and chat:
+            title = self.library.meta(chat).get("title") or chat.title
+            lines = ["Conversación: " + title, "ID: " + chat.id,
+                     "Agente: " + (self.adapter.name if self.adapter else "Demo"),
+                     "Se eliminará del historial original y de Agent Hub, con sus mensajes y subagentes que el agente elimine en cascada.",
+                     "Los archivos del proyecto se conservan. No hay deshacer."]
+            if self.confirm_delete(lines, "ELIMINAR"):
+                if self.demo:
+                    self.chats = [c for c in self.chats if c.id != chat.id]
+                elif self.manager:
+                    delete_chat(self.manager, self.adapter.id, chat, confirmed=True)
+                else:
+                    raise ValueError("La eliminación necesita un gestor de agentes.")
+                self.reload()
+                self.message = "Conversación eliminada." + (" Solo datos ficticios." if self.demo else "")
+            else:
+                self.message = "Eliminación cancelada."
+        elif not self.focus and row.kind == "project":
+            if self.demo:
+                self.message = "Modo demo: no elimina carpetas físicas."
+                return
+            if not self.manager:
+                raise ValueError("La eliminación necesita un gestor de agentes.")
+            self.message = "Revisando carpetas y conversaciones de todos los agentes…"
+            self.draw()
+            plan = folder_plan(self.manager, self.adapter.id, row.value)
+            lines = ["Carpeta: " + plan['name'],
+                     "Se borrarán permanentemente los directorios siguientes, con TODOS sus archivos, incluidos ocultos y repositorios Git:",
+                     *plan['roots'],
+                     f"Conversaciones originales: {len(plan['conversations'])} (todos los agentes registrados; incluye archivadas y sesiones ocultas de Hermes).",
+                     *[agent + " · " + chat.title + " · " + chat.id for agent, chat in plan['conversations']],
+                     "Se quitarán los proyectos asociados del hub y los proyectos nativos de Codex afectados.",
+                     "No se borran repositorios remotos, copias en otras rutas ni servicios externos. No hay deshacer."]
+            if self.confirm_delete(lines, "ELIMINAR CARPETA"):
+                try:
+                    count = delete_folder(self.manager, plan, confirmed=True)
+                finally:
+                    self.reload()
+                self.group, self.selected, self.focus = ("recent", ""), 0, 0
+                self.message = f"Carpeta y archivos eliminados; {count} conversaciones eliminadas."
+            else:
+                self.message = "Eliminación cancelada."
+        else:
+            self.message = "d elimina el chat seleccionado o una carpeta de proyectos; no elimina Recientes ni secciones."
+
     def help(self):
         self.screen.erase()
         height, width = self.screen.getmaxyx()
         lines = [
             "AGENT HUB · AYUDA",
+            "d: eliminar chat original; en carpetas borra archivos y conversaciones de todos los agentes. Siempre pide confirmación escrita.",
             "S: ajustes de colores con vista previa. Enter guarda; Esc cancela.",
             "Con un agente entras directamente; con varios eliges. A cambia de agente.",
             "x pasa contexto del chat seleccionado a otro agente; crea una continuación separada.",
@@ -320,7 +393,7 @@ class Hub:
             "R: releer proyectos/chats y sus eliminaciones del índice local de Codex.",
             "Al abrir y al volver de Codex también refresca. No sincroniza ChatGPT web.",
             "Las carpetas creadas aquí son locales al hub; no hay sincronización de dos vías.",
-            "No elimina chats ni modifica el índice de Codex. No lee credenciales.",
+            "Solo d confirmado elimina mediante el agente; nunca escribe directamente sus bases. No lee credenciales.",
             "El hub no usa red. Codex conserva su propia configuración e integraciones.",
             "Actualización manual: agent-hub update (conecta solo con tu repo GitHub).",
             "j/k desplaza esta ayuda; Enter o Esc vuelve.",
@@ -363,6 +436,8 @@ class Hub:
                 elif key == "A" and self.manager:
                     self.next_agent = "select"
                     return
+                elif key == "d":
+                    self.delete_selected(row, chat)
                 elif key == "x" and chat and self.focus:
                     self.transfer_chat(chat)
                     if self.next_agent:
@@ -448,5 +523,5 @@ class Hub:
                         self.library.change(chat, title=title)
                 elif key == "?":
                     self.help()
-            except (OSError, ValueError) as error:
+            except (OSError, ValueError, sqlite3.Error) as error:
                 self.message = str(error)

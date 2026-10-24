@@ -35,6 +35,7 @@ class Agent:
     container: str = ""
     host_root: str = ""
     runtime_root: str = ""
+    delete: list = field(default_factory=list)
 
     @property
     def available(self):
@@ -57,9 +58,9 @@ class Agent:
                 pass
         return str(path)
 
-    def bridge(self, action, session=None):
+    def bridge(self, action, session=None, project=False, include_hidden=False):
         script = Path(__file__).resolve().parents[1]/"bin/agent-hub"
-        request = {"kind": self.kind, "home": self.home, "action": action, "session": session}
+        request = {"kind": self.kind, "home": self.home, "action": action, "session": session, "project": project, "include_hidden": include_hidden}
         command = ["podman", "exec", self.container, "python3", self.map_path(script),
                    "bridge", "--request", json.dumps(request)]
         try:
@@ -70,10 +71,10 @@ class Agent:
             raise ValueError(self.name + ": historial inaccesible en el contenedor " + self.container + ". " + result.stderr.strip()[:300])
         return json.loads(result.stdout)
 
-    def index(self):
+    def index(self, include_hidden=False):
         if not self.container:
-            return read_index(self.kind, self.home)
-        result = self.bridge("index")
+            return read_index(self.kind, self.home, include_hidden=include_hidden)
+        result = self.bridge("index", include_hidden=include_hidden)
         return ([Chat(**{**c, "cwd": self.map_path(c["cwd"], reverse=True)}) for c in result["conversations"]],
                 [Project(p["id"], p["name"], tuple(self.map_path(r, reverse=True) for r in p["roots"]), p.get("source", "codex"))
                  for p in result["projects"]])
@@ -81,6 +82,34 @@ class Agent:
     def messages(self, session):
         check_id(session)
         return self.bridge("messages", session) if self.container else read_messages(self.kind, self.home, session)
+
+    def check_delete(self):
+        if self.delete and not any("{session}" in part for part in self.delete):
+            raise ValueError(self.name + ": delete debe incluir {session}; no se ejecutó nada.")
+        if not self.delete and self.kind not in ("codex", "hermes"):
+            raise ValueError(self.name + ": no hay un mecanismo nativo de eliminación configurado. No se borró nada.")
+        if not self.available and not self.container:
+            raise ValueError(self.name + ": no está instalado para eliminar conversaciones.")
+
+    def delete_conversation(self, session, cwd):
+        check_id(session)
+        self.check_delete()
+        if self.delete:
+            values = {"session": session, "cwd": self.map_path(cwd)}
+            try:
+                command = self.command + [part.format_map(values) for part in self.delete]
+            except KeyError as error:
+                raise ValueError("Placeholder inválido en delete: " + str(error)) from error
+            return run_delete(command, self.name)
+        if self.container:
+            return self.bridge("delete", session)
+        return native_delete(self.kind, self.home, session)
+
+    def delete_project(self, ident):
+        if self.kind == "codex":
+            if self.container:
+                return self.bridge("delete", ident, project=True)
+            return native_delete(self.kind, self.home, ident, project=True)
 
     def argv(self, cwd, session=None, prompt_file=None, fork=False):
         if not self.available:
@@ -146,7 +175,7 @@ def registry(config_path=None):
             allowed = set(Agent.__dataclass_fields__)
             if set(values)-allowed or values.get("kind") not in KINDS:
                 raise ValueError("Adaptador inválido: " + ident)
-            for key in ("command", "resume", "new", "prompt", "fork"):
+            for key in ("command", "resume", "new", "prompt", "fork", "delete"):
                 parts = values.get(key, [])
                 if not isinstance(parts, list) or not all(isinstance(p, str) and "\x00" not in p for p in parts):
                     raise ValueError("Los comandos de agentes deben ser arrays de argumentos.")
@@ -169,9 +198,33 @@ def bridge_request(request):
     kind, home = request["kind"], request["home"]
     if kind not in KINDS:
         raise ValueError("Adaptador desconocido.")
+    if request["action"] == "delete":
+        return native_delete(kind, home, check_id(request["session"]), project=request.get("project", False))
     if request["action"] == "messages":
         return read_messages(kind, home, check_id(request["session"]))
     if request["action"] != "index":
         raise ValueError("Acción de bridge desconocida.")
-    chats, projects = read_index(kind, home)
+    chats, projects = read_index(kind, home, include_hidden=request.get("include_hidden", False))
     return {"conversations": [asdict(c) for c in chats], "projects": [asdict(p) for p in projects]}
+
+
+def run_delete(command, name, env=None):
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, check=False, timeout=30, env=env)
+    except subprocess.TimeoutExpired as error:
+        raise ValueError(name + ": eliminación sin confirmar por timeout; actualiza el índice antes de reintentar.") from error
+    if result.returncode:
+        raise ValueError(name + ": no se pudo eliminar: " + (result.stderr or result.stdout).strip()[:400])
+    return {"deleted": True}
+
+
+def native_delete(kind, home, ident, project=False):
+    check_id(ident)
+    if kind == "codex":
+        from .rpc import codex_delete
+        codex_delete(home, ident, project=project)
+        return {"deleted": True}
+    if kind == "hermes" and not project:
+        return run_delete(["hermes", "sessions", "delete", ident, "--yes"], "Hermes",
+                          env={**os.environ, "HERMES_HOME": str(home)})
+    raise ValueError("El agente no ofrece eliminación nativa configurada.")

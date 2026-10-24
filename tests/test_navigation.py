@@ -44,6 +44,25 @@ class NavigationTests(unittest.TestCase):
             hub = Hub(screen, Library(None), chats, "/not-used", demo=True, projects=projects)
         return hub, screen
 
+    def test_d_requires_explicit_confirmation_and_cancel_keeps_chat(self):
+        hub, screen = self.make_hub()
+        def unchanged():
+            self.assertEqual(len(hub.chats), 3)
+        def deleted():
+            self.assertEqual(len(hub.chats), 2)
+        screen.events = ['l', 'd', '\n', '\x1b', unchanged, 'd', 'c', deleted, 'q']
+        with patch.object(hub, 'prompt', return_value='ELIMINAR') as prompt:
+            hub.run()
+        prompt.assert_called_once_with('Escribe ELIMINAR')
+
+    def test_demo_folder_delete_never_touches_files_or_calls_backend(self):
+        hub, screen = self.make_hub()
+        screen.events = ['d', 'q']
+        with patch('agent_hub.deletion.folder_plan') as plan:
+            hub.run()
+        plan.assert_not_called()
+        self.assertEqual(len(hub.chats), 3)
+
     def test_style_settings_return_without_changing_navigation(self):
         hub, screen = self.make_hub()
         original_style = hub.style

@@ -83,3 +83,15 @@ Ejemplo para un contenedor ya preparado y con el home del host montado:
 ```
 
 El comando `hermes` del host debe ser el lanzador existente hacia ese contenedor. El lector usa `podman exec` y el propio módulo `bridge` de este checkout, accesible por el montaje indicado; necesita Python 3 dentro del contenedor. Traduce las carpetas y los archivos de contexto entre ambos espacios. No arranca contenedores ni cambia la instalación del agente al explorar. Si está detenido, conserva la caché y muestra un error. No uses este ejemplo si tu montaje o lanzador tienen otra estructura.
+
+## Eliminación nativa confirmada
+
+Codex usa `thread/delete` / `project/delete` del app-server instalado; Hermes usa `sessions delete ID --yes` con `HERMES_HOME` del adaptador. El hub solo los llama después de su confirmación escrita y verifica que el índice nativo ya no devuelva el ID. Un error no se transforma en una eliminación local silenciosa.
+
+Para otro agente puedes configurar, solo si su CLI lo admite realmente:
+
+```json
+{"id":"mi-agente","delete":["sessions","delete","{session}","--yes"]}
+```
+
+`delete` se añade a `command` como argv, sin shell, y requiere el placeholder `{session}`; también admite `{cwd}`. Debe eliminar únicamente esa sesión y sus dependencias nativas, terminar sin pedir interacción adicional y devolver un código distinto de cero si falla. El índice/exportador del adaptador debe reflejar el borrado antes de terminar. No configures comandos globales de purga. Un adaptador sin eliminación no puede participar en el borrado completo de una carpeta que contenga sus conversaciones. En contenedores, los adaptadores nativos Codex/Hermes ejecutan la eliminación dentro del contenedor mediante el bridge local. Un `delete` personalizado se ejecuta con el `command` del host, igual que el lanzador existente.

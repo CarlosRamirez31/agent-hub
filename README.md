@@ -82,6 +82,7 @@ Los cambios hechos desde el CLI se aplican al volver a abrir `agent-hub`; los aj
 | `f` | Fork nativo, cuando el agente lo admite |
 | `x` | Pasar el contexto seleccionado a otro agente y abrir la continuación |
 | `A` | Cambiar de agente |
+| `d` | Eliminar chat original; en una carpeta, eliminar sus archivos y conversaciones, con confirmación escrita |
 | `S` | Ajustes de colores con vista previa, guardar o cancelar |
 | `y` | Guardar la ruta JSON del chat en el estado local |
 | `p` | Agregar una carpeta, aunque no tenga chats |
@@ -96,6 +97,16 @@ Los cambios hechos desde el CLI se aplican al volver a abrir `agent-hub`; los aj
 En el selector de carpetas, `j/k` navega, `Enter/l` entra, `h` sube, `.` muestra ocultas y `/` permite escribir la ruta. **Espacio agrega la carpeta abierta** y `Esc` cancela. No crea ni borra directorios de código.
 
 Al abrir un chat, el hub cede la terminal al agente real. Sal del CLI con su comando de salida (por ejemplo `/quit` en Codex y Hermes) para volver al menú. No mantiene un panel lateral visible mientras estás escribiendo dentro del agente. Los bloqueos de una conversación abierta en otra app los gestiona su agente: cierra la sesión allí y reintenta; el hub no fuerza bloqueos.
+
+## Eliminar conversaciones y carpetas
+
+Con el foco en las conversaciones, `d` muestra el título, ID y agente. Pulsa `c` y escribe **`ELIMINAR`** para borrar la conversación y sus mensajes del agente original y del índice local. `Esc` cancela. El agente puede eliminar también subagentes dependientes según sus propias reglas. Los archivos de código se conservan al borrar un chat.
+
+Con el foco en una carpeta de proyectos, `d` revisa todos los agentes registrados y muestra las rutas físicas y conversaciones afectadas, incluidas las archivadas, las sesiones ocultas de Hermes y las de subcarpetas. Usa `j/k` para revisar el alcance, pulsa `c` y escribe **`ELIMINAR CARPETA`**. Esto borra los historiales originales afectados, quita los proyectos correspondientes y elimina **todos los archivos de esos directorios, incluidos ocultos y `.git`**. No borra repositorios remotos ni copias situadas en otras rutas. No hay deshacer. Si el alcance cambia después de mostrarlo, pide una nueva revisión.
+
+La eliminación nativa está implementada para **Codex** (`thread/delete` y `project/delete` mediante su app-server local) y **Hermes** (`hermes sessions delete ID --yes`, tras la confirmación del hub). Otros agentes necesitan un comando `delete` explícito en su adaptador; sin él la operación se rechaza, sin sustituirla por ocultar el chat. Los bloqueos y errores del agente se respetan. Si no se pueden revisar todos los agentes, no se ofrece el borrado completo de la carpeta. Un fallo a mitad de ejecución puede dejar conversaciones ya eliminadas: se informa del avance y los archivos se conservan mientras falle el borrado nativo. Los errores durante el borrado de archivos también pueden dejar un resultado parcial.
+
+Por protección del propio programa, no se permite borrar `/`, directorios base del sistema como `/usr` o `/etc`, el home completo, los historiales de agentes, Agent Hub ni carpetas con otros sistemas de archivos montados. El modo demo solo elimina chats ficticios en memoria; nunca borra directorios físicos.
 
 ## Sincronización y base local
 
@@ -158,7 +169,7 @@ agent-hub new --agent hermes --folder ID_CARPETA --json
 
 Usa `--launch` para abrirla inmediatamente, o guarda su JSON y llama luego a `open`. El hub crea la sesión nativa al abrir por primera vez y enlaza el ID al salir. Si la sesión sigue abierta, no intentes abrirla de nuevo simultáneamente desde otra app.
 
-[Esquema JSON](docs/route.schema.json) · [Prompt listo para la integración de Coucou](docs/coucou-integration-prompt.md). **Este repositorio no modifica Coucou, sus lanzadores ni los dotfiles.** Su integración se hará en otro trabajo usando este contrato público, sin leer las tablas privadas.
+[Contrato completo](docs/coucou-contract.md) · [Esquema JSON](docs/route.schema.json) · [Prompt listo para la integración de Coucou](docs/coucou-integration-prompt.md). **Este repositorio no modifica Coucou, sus lanzadores ni los dotfiles.** Su integración se hará en otro trabajo usando este contrato público, sin leer las tablas privadas.
 
 ## Privacidad, mantenimiento y pruebas
 

@@ -148,6 +148,8 @@ class Library:
             raise ValueError("Formato de library.json desconocido; el archivo se ha conservado.")
         self.data = data
         self.data.setdefault("projects", [])
+        if not isinstance(self.data.get("removed_projects", []), list) or not all(isinstance(p, str) for p in self.data.get("removed_projects", [])):
+            raise ValueError("Formato de removed_projects inválido; se conservó el archivo.")
 
     def add_project(self, path, name=None):
         root = normalize(path)
