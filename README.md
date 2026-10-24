@@ -169,7 +169,7 @@ agent-hub new --agent hermes --folder ID_CARPETA --json
 
 Usa `--launch` para abrirla inmediatamente, o guarda su JSON y llama luego a `open`. El hub crea la sesión nativa al abrir por primera vez y enlaza el ID al salir. Si la sesión sigue abierta, no intentes abrirla de nuevo simultáneamente desde otra app.
 
-[Contrato completo](docs/coucou-contract.md) · [Esquema JSON](docs/route.schema.json) · [Prompt listo para la integración de Coucou](docs/coucou-integration-prompt.md). **Este repositorio no modifica Coucou, sus lanzadores ni los dotfiles.** Su integración se hará en otro trabajo usando este contrato público, sin leer las tablas privadas.
+[Esquema JSON de las rutas](docs/route.schema.json).
 
 ## Privacidad, mantenimiento y pruebas
 
