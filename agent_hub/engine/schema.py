@@ -1,0 +1,21 @@
+"""Persistent execution state; no native agent storage is changed."""
+ENGINE_SCHEMA = (
+    'CREATE TABLE agent_profiles (id TEXT PRIMARY KEY, spec TEXT NOT NULL, updated INTEGER NOT NULL)',
+    'CREATE TABLE skills (id TEXT PRIMARY KEY, scope TEXT NOT NULL, owner TEXT NOT NULL, content TEXT NOT NULL, updated INTEGER NOT NULL)',
+    'CREATE TABLE policies (id TEXT PRIMARY KEY, spec TEXT NOT NULL, updated INTEGER NOT NULL)',
+    'CREATE TABLE workspaces (task INTEGER PRIMARY KEY REFERENCES tasks(id), repo TEXT NOT NULL, path TEXT UNIQUE NOT NULL, branch TEXT NOT NULL, base TEXT NOT NULL)',
+    """CREATE TABLE executions (id INTEGER PRIMARY KEY AUTOINCREMENT, task INTEGER NOT NULL REFERENCES tasks(id),
+        profile TEXT NOT NULL, role TEXT NOT NULL, status TEXT NOT NULL, started REAL NOT NULL, finished REAL,
+        fingerprint TEXT, result TEXT, pid INTEGER, process_token TEXT)""",
+    'CREATE INDEX executions_task ON executions(task,id)',
+    'CREATE TABLE verifications (id INTEGER PRIMARY KEY AUTOINCREMENT, task INTEGER NOT NULL REFERENCES tasks(id), fingerprint TEXT NOT NULL, passed INTEGER NOT NULL, evidence TEXT NOT NULL, created INTEGER NOT NULL)',
+    'CREATE TABLE reviews (id INTEGER PRIMARY KEY AUTOINCREMENT, task INTEGER NOT NULL REFERENCES tasks(id), fingerprint TEXT NOT NULL, reviewer TEXT NOT NULL, verdict TEXT NOT NULL, issues TEXT NOT NULL, kind TEXT NOT NULL, created INTEGER NOT NULL)',
+    'CREATE TABLE approvals (id INTEGER PRIMARY KEY AUTOINCREMENT, task INTEGER NOT NULL REFERENCES tasks(id), operation TEXT NOT NULL, fingerprint TEXT NOT NULL, approved INTEGER NOT NULL, reason TEXT NOT NULL, created INTEGER NOT NULL)',
+    'CREATE TABLE project_states (id TEXT PRIMARY KEY, state TEXT NOT NULL, updated INTEGER NOT NULL)',
+    'CREATE TABLE context_packs (id INTEGER PRIMARY KEY AUTOINCREMENT, task INTEGER NOT NULL REFERENCES tasks(id), content TEXT NOT NULL, created INTEGER NOT NULL)',
+    'CREATE TABLE structured_handoffs (id INTEGER PRIMARY KEY AUTOINCREMENT, task INTEGER NOT NULL REFERENCES tasks(id), source TEXT NOT NULL, target TEXT NOT NULL, reason TEXT NOT NULL, content TEXT NOT NULL, created INTEGER NOT NULL)',
+    'CREATE TABLE runs (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, status TEXT NOT NULL, budget TEXT NOT NULL, created INTEGER NOT NULL, updated INTEGER NOT NULL)',
+    'CREATE TABLE run_tasks (run INTEGER NOT NULL REFERENCES runs(id), task INTEGER UNIQUE NOT NULL REFERENCES tasks(id), PRIMARY KEY(run,task))',
+    'CREATE TABLE engine_events (id INTEGER PRIMARY KEY AUTOINCREMENT, task INTEGER REFERENCES tasks(id), run INTEGER REFERENCES runs(id), type TEXT NOT NULL, payload TEXT NOT NULL, created INTEGER NOT NULL)',
+    'CREATE TABLE agent_metrics (execution INTEGER PRIMARY KEY REFERENCES executions(id), profile TEXT NOT NULL, model TEXT, domain TEXT NOT NULL, complexity TEXT NOT NULL, success INTEGER NOT NULL, duration REAL NOT NULL, tokens INTEGER, cost REAL, review_rejected INTEGER)',
+)

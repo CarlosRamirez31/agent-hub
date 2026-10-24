@@ -13,29 +13,20 @@ from .store import Chat, Project
 class Cache:
     def __init__(self, path):
         self.path = Path(path)
-        self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        self.conn = sqlite3.connect(self.path, timeout=5)
-        os.chmod(self.path, 0o600)
+        memory = str(path) == ':memory:'
+        if not memory:
+            self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        self.conn = sqlite3.connect(':memory:' if memory else self.path, timeout=5)
+        if not memory:
+            os.chmod(self.path, 0o600)
         self.conn.row_factory = sqlite3.Row
-        if self.conn.execute("PRAGMA user_version").fetchone()[0] > 1:
+        try:
+            self.conn.execute("PRAGMA foreign_keys=ON")
+            from .migrations import migrate
+            migrate(self.conn)
+        except BaseException:
             self.conn.close()
-            raise ValueError("La base de Agent Hub pertenece a una versión más nueva.")
-        self.conn.execute("PRAGMA foreign_keys=ON")
-        self.conn.executescript("""
-            CREATE TABLE IF NOT EXISTS agents (id TEXT PRIMARY KEY, name TEXT, available INT, synced INT, error TEXT);
-            CREATE TABLE IF NOT EXISTS agent_sources (agent TEXT PRIMARY KEY, reader TEXT, home TEXT, container TEXT);
-            CREATE TABLE IF NOT EXISTS projects (agent TEXT, id TEXT, name TEXT, roots TEXT, source TEXT,
-                PRIMARY KEY(agent,id));
-            CREATE TABLE IF NOT EXISTS conversations (agent TEXT, id TEXT, title TEXT, cwd TEXT, updated INT,
-                archived INT, project_id TEXT, PRIMARY KEY(agent,id));
-            CREATE TABLE IF NOT EXISTS messages (agent TEXT, conversation TEXT, ordinal INT, role TEXT, text TEXT,
-                PRIMARY KEY(agent,conversation,ordinal), FOREIGN KEY(agent,conversation)
-                REFERENCES conversations(agent,id) ON DELETE CASCADE);
-            CREATE TABLE IF NOT EXISTS transfers (id TEXT PRIMARY KEY, source_agent TEXT, source_chat TEXT,
-                target_agent TEXT, project_id TEXT, project_name TEXT, cwd TEXT, title TEXT,
-                context_path TEXT, native_id TEXT, status TEXT, created INT);
-            PRAGMA user_version=1;
-        """)
+            raise
 
     def close(self):
         self.conn.close()

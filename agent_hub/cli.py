@@ -112,8 +112,15 @@ def parse_route(args):
 
 
 def main(argv=None):
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    if arguments and arguments[0] == 'work':
+        from .engine.work_cli import main as work_main
+        return work_main(arguments[1:])
+    if arguments and arguments[0] == 'task':
+        from .engine.cli import main as task_main
+        return task_main(arguments[1:])
     parser = argparse.ArgumentParser(description="Agentes, proyectos y conversaciones en una terminal.")
-    parser.add_argument("action", nargs="?", choices=["update", "agents", "projects", "conversations", "route", "open", "new", "transfer", "sync", "bridge", "bind", "style"])
+    parser.add_argument("action", nargs="?", choices=["update", "agents", "projects", "conversations", "route", "open", "new", "transfer", "sync", "bridge", "bind", "style", "task", "work"])
     parser.add_argument("--version", action="version", version=__version__)
     from .style import PRESETS
     parser.add_argument("--preset", choices=PRESETS, help="guardar una paleta con la acción style")
@@ -131,7 +138,7 @@ def main(argv=None):
     parser.add_argument("--dry-run", action="store_true", help="validar una ruta sin iniciar el agente")
     parser.add_argument("--demo", action="store_true")
     parser.add_argument("--count", action="store_true")
-    args = parser.parse_args(argv)
+    args = parser.parse_args(arguments)
     if args.preset and args.action != "style":
         parser.error("--preset requiere la acción style")
     manager = None

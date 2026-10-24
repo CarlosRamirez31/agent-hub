@@ -7,6 +7,8 @@ import shutil
 import subprocess
 import time
 
+from . import __version__
+
 
 class CodexReader:
     def __init__(self, home, timeout=30):
@@ -66,7 +68,7 @@ class CodexReader:
 def codex_messages(home, ident):
     reader = CodexReader(home)
     try:
-        reader.call("initialize", {"clientInfo": {"name": "agent_hub", "title": "Agent Hub", "version": "0.4.0"},
+        reader.call("initialize", {"clientInfo": {"name": "agent_hub", "title": "Agent Hub", "version": __version__},
                                    "capabilities": {"experimentalApi": True}})
         reader.send({"method": "initialized", "params": {}})
         messages, cursor, seen = [], None, set()
@@ -97,7 +99,7 @@ def codex_delete(home, ident, project=False):
     """Delete only the caller-confirmed exact native ID through Codex itself."""
     reader = CodexReader(home)
     try:
-        reader.call("initialize", {"clientInfo": {"name": "agent_hub", "title": "Agent Hub", "version": "0.4.0"},
+        reader.call("initialize", {"clientInfo": {"name": "agent_hub", "title": "Agent Hub", "version": __version__},
                                    "capabilities": {"experimentalApi": True}})
         reader.send({"method": "initialized", "params": {}})
         return reader.call("project/delete" if project else "thread/delete",

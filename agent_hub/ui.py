@@ -121,7 +121,7 @@ class Hub:
         self.put(height-5, side+3, ("Buscar: " + self.query) if self.query else detail, self.color(3))
         self.put(height-3, 2, self.message, self.color(1))
         self.put(height-2, 2, "j/k mover · l entrar · h volver · Enter continuar · f copia · p carpeta · d eliminar · S colores · q salir", curses.A_DIM)
-        self.put(height-1, 2, "/ buscar · t recientes · x pasar contexto · A agentes · y ruta JSON · R sincronizar · ? ayuda", curses.A_DIM)
+        self.put(height-1, 2, "/ buscar · t recientes · x pasar contexto · A agentes · y ruta JSON · R sincronizar · T tareas · ? ayuda", curses.A_DIM)
         self.screen.refresh()
 
     def prompt(self, label, initial=""):
@@ -437,6 +437,18 @@ class Hub:
                 elif key == "A" and self.manager:
                     self.next_agent = "select"
                     return
+                elif key == "T":
+                    from .engine.tui import Dashboard
+                    if self.manager:
+                        Dashboard(self.screen, self.manager.cache, self.manager.state).run()
+                    else:
+                        from .cache import Cache
+                        memory = Cache(':memory:')
+                        try:
+                            Dashboard(self.screen, memory, Path('.'), demo=True).run()
+                        finally:
+                            memory.close()
+                    self.message = "Volviste a tus conversaciones. T abre tareas."
                 elif key == "d":
                     self.delete_selected(row, chat)
                 elif key == "x" and chat and self.focus:

@@ -124,3 +124,15 @@ path.write_text(json.dumps(data))
             os.write(master, b'\x03')
             self.assertEqual(process.wait(timeout=5), 130)
             self.assertEqual(termios.tcgetattr(slave), original)
+
+    def test_task_dashboard_returns_to_existing_browser_and_restores_terminal(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            process,master,slave,original=self.start_hub(Path(temporary),['--demo'])
+            self.expect(master,b'R sincronizar')
+            os.write(master,b'T')
+            self.expect(master,b'AGENT HUB')
+            os.write(master,b'hl\x1b')
+            self.expect(master,b'R sincronizar')
+            os.write(master,b'q')
+            self.assertEqual(process.wait(timeout=5),0)
+            self.assertEqual(termios.tcgetattr(slave),original)

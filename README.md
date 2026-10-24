@@ -82,6 +82,7 @@ Los cambios hechos desde el CLI se aplican al volver a abrir `agent-hub`; los aj
 | `f` | Fork nativo, cuando el agente lo admite |
 | `x` | Pasar el contexto seleccionado a otro agente y abrir la continuación |
 | `A` | Cambiar de agente |
+| `T` | Panel de tareas y runs, sin cambiar la selección de conversación |
 | `d` | Eliminar chat original; en una carpeta, eliminar sus archivos y conversaciones, con confirmación escrita |
 | `S` | Ajustes de colores con vista previa, guardar o cancelar |
 | `y` | Guardar la ruta JSON del chat en el estado local |
@@ -173,6 +174,46 @@ agent-hub new --agent hermes --folder ID_CARPETA --json
 Usa `--launch` para abrirla inmediatamente, o guarda su JSON y llama luego a `open`. El hub crea la sesión nativa al abrir por primera vez y enlaza el ID al salir. Si la sesión sigue abierta, no intentes abrirla de nuevo simultáneamente desde otra app.
 
 [Esquema JSON de las rutas](docs/route.schema.json).
+
+## Motor de tareas y ejecución local
+
+La versión 0.5.0 añade un motor independiente de las conversaciones nativas:
+contratos, DAGs, runs, perfiles, skills, policies, worktrees, checks, reviews,
+aprobaciones, contexto estructurado, handoffs, budgets, métricas y ejecución
+paralela acotada. La base se migra de forma aditiva y transaccional; no se borran
+las conversaciones, transferencias ni bibliotecas anteriores.
+
+```sh
+agent-hub task create --title "Revisar componente" --agent codex --json
+agent-hub task list --json
+agent-hub task show TASK-001 --json
+agent-hub task status TASK-001 ready --json
+agent-hub work init                 # perfiles nativos; no inicia modelos
+agent-hub work doctor               # binarios y sandbox, sin modelos
+agent-hub work tui                  # panel Vim; también T en el explorador
+agent-hub work demo                 # flujo ficticio completo y desechable
+```
+
+Las tareas se pueden crear y consultar sin agentes instalados. La ejecución
+automática necesita Git y **bubblewrap en Linux**; si no está disponible no se
+sustituye por ejecución sin sandbox. La navegación y apertura manual de CLIs
+continúan disponibles en las plataformas anteriores.
+
+`work init` preserva perfiles existentes, modelos, providers, autenticación y
+policies. El registro describe capacidades; no inventa skills académicas ni
+modelos baratos que no hayas configurado. El ruteo fixed no sustituye el agente.
+Los controles de red incluyen las llamadas del proveedor: para modelos remotos
+se requiere permiso/policy y aprobación explícita de red; no hay bypass oculto.
+
+Los planes se pueden revisar antes de ejecutar. Faltas de repositorio, checks,
+capacidad, aprobación o aislamiento quedan visibles en `waiting_human`. El
+orquestador usa reglas deterministas y DAGs explícitos, no llama a un LLM para
+cada decisión. El estado de trabajo permanece al cambiar de worker. Integrar
+código y hacer commits requieren aprobación; el motor no hace push.
+
+[Guía de comandos, perfiles y límites del motor](docs/task-engine.md) ·
+[Arquitectura inicial](CURRENT_ARCHITECTURE.md) ·
+[Plan incremental](IMPLEMENTATION_PLAN.md).
 
 ## Privacidad, mantenimiento y pruebas
 
