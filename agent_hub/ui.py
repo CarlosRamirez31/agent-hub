@@ -8,6 +8,7 @@ import unicodedata
 
 from .store import normalize, project_catalog, read_chats, read_projects, visible
 from .navigation import sidebar
+from .style import Style
 
 
 def clean(value):
@@ -29,26 +30,15 @@ class Hub:
         self.query = ""
         self.archives = False
         self.message = "j/k elige carpeta · l entra · Enter continúa el chat · h vuelve"
-        self.colors = False
+        self.style = Style()
         try:
             curses.curs_set(0)
         except curses.error:
             pass
-        if curses.has_colors():
-            curses.start_color()
-            try:
-                curses.use_default_colors()
-                background = -1
-            except curses.error:
-                background = curses.COLOR_BLACK
-            curses.init_pair(1, curses.COLOR_CYAN, background)
-            curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_CYAN)
-            curses.init_pair(3, curses.COLOR_MAGENTA, background)
-            self.colors = True
         self.screen.keypad(True)
 
     def color(self, pair):
-        return curses.color_pair(pair) if self.colors else curses.A_NORMAL
+        return self.style.color(pair)
 
     def put(self, y, x, text, attr=0, width=None):
         height, columns = self.screen.getmaxyx()

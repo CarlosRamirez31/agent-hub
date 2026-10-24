@@ -39,6 +39,35 @@ agent-hub --count         # recuentos, sin mostrar textos de conversaciones
 
 El registro incluye lectores para Codex, Hermes, Claude Code, Gemini CLI y el formato SQLite conocido de OpenCode. **No existe un formato universal de historial.** Otros agentes se incorporan mediante un adaptador configurable y un índice JSON normalizado: [registro y formatos](docs/adapters.md). No se instala ningún agente ni se cambian sus proveedores, credenciales o herramientas.
 
+## Colores y estilo
+
+El selector de agentes, el menú principal y el selector de destino comparten la misma paleta. El tema predeterminado conserva el cian y magenta del menú original; el fondo general lo proporciona tu terminal.
+
+```sh
+agent-hub style --preset cyan    # estilo original
+agent-hub style --preset violet  # violeta
+agent-hub style --preset green   # verde
+agent-hub style --preset blue    # azul
+agent-hub style --preset mono    # sin colores, selección invertida
+agent-hub style                  # consultar colores y ubicación del archivo
+```
+
+Los cambios se aplican al volver a abrir `agent-hub`. Para personalizar los colores, guarda un tema y edita `${XDG_CONFIG_HOME:-~/.config}/agent-hub/style.json`:
+
+```json
+{
+  "theme": "cyan",
+  "colors": {
+    "accent": "cyan",
+    "secondary": "magenta",
+    "selection_fg": "black",
+    "selection_bg": "cyan"
+  }
+}
+```
+
+`accent` controla títulos, divisores y avisos; `secondary`, los detalles; `selection_fg` y `selection_bg`, el texto y fondo de la fila seleccionada. Colores disponibles: `black`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan`, `white` y `default` (color del terminal). Puedes omitir `colors` o cualquiera de sus campos para heredar del tema. En terminales sin color la selección permanece visible por inversión.
+
 ## Navegación
 
 | Tecla | Acción |

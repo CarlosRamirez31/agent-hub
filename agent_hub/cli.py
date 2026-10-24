@@ -42,6 +42,8 @@ def update():
 
 def choose_agent(screen, agents, title="AGENT HUB · ELIGE AGENTE"):
     from .ui import clean
+    from .style import Style
+    style = Style()
     index = 0
     screen.keypad(True)
     try:
@@ -57,13 +59,14 @@ def choose_agent(screen, agents, title="AGENT HUB · ELIGE AGENTE"):
                     screen.addnstr(y, 2, clean(text), max(1, width-3), style)
                 except curses.error:
                     pass
-        line(1, title, curses.A_BOLD)
+        line(1, "◈  " + title, curses.A_BOLD | style.color(1))
+        line(2, "LOCAL · sin telemetría", style.color(3))
         room = max(1, height-7)
         offset = max(0, index-room+1)
         for i, agent in enumerate(agents[offset:offset+room], offset):
-            line(3+i-offset, ("> " if i == index else "  ") + agent.name + " · " + agent.id,
-                 curses.A_REVERSE if i == index else 0)
-        line(height-2, "j/k elige · Enter/l entra · Esc/q cancela")
+            line(3+i-offset, (("> " if i == index else "  ") + agent.name + " · " + agent.id).ljust(max(1, width-3)),
+                 (style.color(2) | curses.A_BOLD) if i == index else curses.A_NORMAL)
+        line(height-2, "j/k elige · Enter/l entra · Esc/q cancela", curses.A_DIM)
         screen.refresh()
         key = screen.get_wch()
         if key in ("q", "\x1b"):
@@ -111,8 +114,10 @@ def parse_route(args):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Agentes, proyectos y conversaciones en una terminal.")
-    parser.add_argument("action", nargs="?", choices=["update", "agents", "projects", "conversations", "route", "open", "new", "transfer", "sync", "bridge", "bind"])
+    parser.add_argument("action", nargs="?", choices=["update", "agents", "projects", "conversations", "route", "open", "new", "transfer", "sync", "bridge", "bind", "style"])
     parser.add_argument("--version", action="version", version=__version__)
+    from .style import PRESETS
+    parser.add_argument("--preset", choices=PRESETS, help="guardar una paleta con la acción style")
     parser.add_argument("--agent")
     parser.add_argument("--to", dest="target")
     parser.add_argument("--folder")
@@ -128,8 +133,15 @@ def main(argv=None):
     parser.add_argument("--demo", action="store_true")
     parser.add_argument("--count", action="store_true")
     args = parser.parse_args(argv)
+    if args.preset and args.action != "style":
+        parser.error("--preset requiere la acción style")
     manager = None
     try:
+        if args.action == "style":
+            from .style import config_path, load, save
+            config = save(args.preset) if args.preset else load()
+            print(json.dumps({"path": str(config_path()), **config}, ensure_ascii=False, indent=2))
+            return 0
         if args.action == "update":
             return update()
         if args.action == "bridge":
