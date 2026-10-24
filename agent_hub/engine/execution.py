@@ -21,6 +21,8 @@ def parse_result(profile, raw):
         value = json.loads(raw)
         if not isinstance(value,dict) or not isinstance(value.get('text',''),str):
             raise ValueError('El worker no devolvió un resultado JSON válido.')
+        if value.get('error') is not None and not isinstance(value['error'],str):
+            raise ValueError('El error reportado debe ser texto.')
         for key in ('tokens','cost'):
             if value.get(key) is not None and (isinstance(value[key],bool) or not isinstance(value[key],int if key=='tokens' else (int,float)) or not math.isfinite(value[key]) or value[key]<0):
                 raise ValueError('Métrica reportada no válida: '+key)
@@ -31,7 +33,7 @@ def parse_result(profile, raw):
             if field in value:
                 from .tasks import strings,relative
                 value[field]=[relative(path) for path in strings(value[field],field)]
-        allowed={'text','native_id','tokens','cost','verdict','issues','files_changed','summary','tests','artifacts'}
+        allowed={'error','text','native_id','tokens','cost','verdict','issues','files_changed','summary','tests','artifacts'}
         if set(value)-allowed:
             raise ValueError('Campos de resultado no reconocidos; no se guardaron datos internos.')
         return value
@@ -143,7 +145,7 @@ class Runner:
             from ..agents import check_id
             values['session']=check_id(native)
             command=profile['resume_command']
-        if profile['model'] and profile['provider'] in ('codex','hermes','gemini') and not any('{model}' in part for part in command):
+        if profile['model'] and profile['provider'] in ('codex','hermes','gemini','antigravity') and not any('{model}' in part for part in command):
             command=[*command,'--model',profile['model']]
         try:
             argv=[]
@@ -203,6 +205,11 @@ class Runner:
             if native and profile['resume_command'] and result and result.get('native_id') and result['native_id']!=native:
                 result={**result,'native_id':native,'identity_mismatch':True}
                 raise ValueError('El CLI devolvió otra identidad al reanudar; se conservó el ID exacto anterior.')
+            if result and profile['provider']=='antigravity' and result.get('native_id'):
+                from ..antigravity import record
+                result['route']=record(result['native_id'],workspace['path'],
+                    [{'role':'user','text':task.contract['objective']},{'role':'assistant','text':result.get('text','')}],
+                    home=self.state/'adapters'/'antigravity')
             if raw['code'] or raw['failure'] or (result or {}).get('error'):
                 raise ValueError(raw['failure'] or (result or {}).get('error') or raw['stderr'].strip()[:2000] or 'CLI failure')
             if result is None:

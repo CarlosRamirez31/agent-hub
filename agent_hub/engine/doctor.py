@@ -18,7 +18,7 @@ def doctor(conn):
     for profile in profiles.list():
         row={'id':profile['id'],'available':profile['available'],'help_ok':False,'sandbox_works':checks['sandbox_works']}
         if profile['available']:
-            command=[profile['command'][0],'--help']
+            command=['agy' if profile['provider']=='antigravity' else profile['command'][0],'--help']
             if profile.get('container'):
                 prefix=['podman','exec',profile['container']['name']]
                 probe=subprocess.run([*prefix,'bwrap','--die-with-parent','--unshare-pid','--unshare-ipc','--unshare-uts','--ro-bind','/','/','--ro-bind','/proc','/proc','--unshare-net','--','/usr/bin/true'],

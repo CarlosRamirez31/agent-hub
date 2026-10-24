@@ -46,7 +46,7 @@ def validate(raw):
     value['model'] = raw.get('model')
     if value['model'] is not None:
         text(value['model'], 'model', 256)
-        if value['provider'] not in ('codex','hermes','gemini') and not any('{model}' in part for part in command):
+        if value['provider'] not in ('codex','hermes','gemini','antigravity') and not any('{model}' in part for part in command):
             raise ValueError('El modelo declarado debe usarse en command mediante {model}.')
     value['enabled'] = raw.get('enabled', True)
     if type(value['enabled']) is not bool:
@@ -95,7 +95,7 @@ class Profiles:
         return json.loads(row[0])
 
     def available(self, profile):
-        return bool(profile['enabled'] and profile['command'] and shutil.which('podman' if profile.get('container') else profile['command'][0]))
+        return bool((profile['provider']!='antigravity' or shutil.which('agy')) and profile['enabled'] and profile['command'] and shutil.which('podman' if profile.get('container') else profile['command'][0]))
 
     def list(self):
         return [{**self.get(r[0]), 'available': self.available(self.get(r[0]))}

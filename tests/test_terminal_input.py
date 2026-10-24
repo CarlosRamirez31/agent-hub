@@ -95,7 +95,7 @@ path.write_text(json.dumps(data))
             config = root/'config/agent-hub/agents.json'
             config.parent.mkdir(parents=True)
             config.write_text(json.dumps({'version': 1, 'agents': [
-                *[{'id': ident, 'enabled': False} for ident in ('codex', 'hermes', 'claude', 'gemini', 'opencode')],
+                *[{'id': ident, 'enabled': False} for ident in ('codex', 'hermes', 'claude', 'gemini', 'opencode', 'antigravity')],
                 {'id': 'fixture', 'kind': 'normalized', 'home': str(home), 'command': [sys.executable, str(script)],
                  'delete': [str(index), '{session}']}]}))
             process, master, _, _ = self.start_hub(root, ['--agent', 'fixture'])

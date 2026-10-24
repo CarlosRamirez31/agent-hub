@@ -50,6 +50,7 @@ def json_lines(path):
 
 def read_index(kind, home, include_hidden=False):
     home = Path(home).expanduser()
+    if kind == "antigravity":kind = "normalized"
     if kind == "codex":
         return read_chats(home), read_projects(home)
     if kind == "hermes":
@@ -142,6 +143,7 @@ def read_index(kind, home, include_hidden=False):
 def read_messages(kind, home, ident):
     """Only visible user/assistant text; never return system/tool/thinking fields."""
     home = Path(home).expanduser()
+    if kind == "antigravity":kind = "normalized"
     if kind == "codex":
         from .rpc import codex_messages
         return codex_messages(home, ident)

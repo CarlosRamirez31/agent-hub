@@ -415,16 +415,32 @@ exacta. Las pruebas no consumen tokens de modelos reales. Gemini tiene fixtures
 basados en su [protocolo headless](https://geminicli.com/docs/cli/headless/), pero
 requiere validar la versión instalada antes de confiar en un proveedor nuevo.
 
-## Gemini CLI 0.65
+## Antigravity CLI 1.4.7
 
-El instalador local registra `gemini` y `gemini-reviewer` mediante `work init`.
-No necesita modificar el registro nativo por defecto. La autenticación se realiza
-primero con `gemini` → Sign in with Google; `/auth` vuelve a ese selector.
-Se respeta la elección de confianza de carpetas, sandbox y permisos nativos.
+El acceso de cuentas personales pasó de Gemini CLI a Antigravity CLI el 18 de
+junio de 2026. `agy` conserva la autenticación de Google del proveedor. `work init`
+registra sus perfiles worker/reviewer; no cambia policies ni aprueba herramientas.
 
-El formato `gemini-jsonl` captura `init.session_id`, concatena exactamente los
-fragmentos assistant y conserva errores junto al ID conocido. Un reviewer que
-devuelva JSON en varios fragmentos mantiene así su resultado estructurado válido.
-La apertura de una ejecución usa ese ID, nunca el índice `latest`. Las fixtures
-incluyen varias conversaciones de una misma carpeta, eliminación de la elegida,
-cuota, worker/reviewer y rechazo de texto de usuario/herramientas en el resultado.
+El driver `agent-hub agy-run` usa el stream público (`init`, `result`) de `agy`,
+verifica `conversation_id` y workspace antes de enviar un mensaje JSON por stdin.
+`--conversation ID` mantiene la identidad exacta; no usa latest/continue. Captura
+respuesta visible y tokens declarados, conservando errores e ID cuando están
+verificados. El reviewer añade `--json-schema` con el contrato del Hub.
+
+El índice de conversaciones es propio del Hub y se alimenta de hooks públicos y
+resultados ejecutados. No explora bases, keyrings ni transcripts privados. Por
+eso solo aparecen conversaciones observadas; no se inventa un historial completo
+ni se traslada un ID de Gemini a Antigravity. Los hooks externos pueden registrar
+su metadata con `agent-hub agy-run --observe` (JSON por stdin). La apertura de una
+sesión existente hace `--probe` sin enviar ningún turno antes de pasar al CLI
+interactivo, y rechaza una identidad distinta.
+
+`agy-run --no-record` se utiliza dentro del sandbox del worker. El coordinador
+registra el resultado verificado en el índice propio al terminar. Esto evita
+conceder al worker escritura sobre el estado del Hub. Para usar la autenticación
+nativa, las excepciones de estado y la red siguen siendo decisiones explícitas.
+
+Iniciar sesión con `agy`; el navegador lleva al acceso personal de Google.
+Antigravity guarda Enable Telemetry de `/config` en la cuenta: no puede
+representarse fielmente como un booleano local desactivado por el instalador.
+No se agregaron flags de bypass, servicios remotos o SDKs al Hub.

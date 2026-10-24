@@ -11,7 +11,7 @@ import subprocess
 from .native import read_index, read_messages
 from .store import Chat, Project
 
-KINDS = {"codex", "hermes", "claude", "gemini", "opencode", "normalized"}
+KINDS = {"codex", "hermes", "claude", "gemini", "opencode", "normalized", "antigravity"}
 SAFE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\Z")
 
 
@@ -46,7 +46,7 @@ class Agent:
         if self.kind == "codex":
             return any(home.glob("state_*.sqlite"))
         marker = {"hermes": "state.db", "claude": "projects", "gemini": "tmp",
-                  "opencode": "opencode.db", "normalized": "index.json"}[self.kind]
+                  "opencode": "opencode.db", "normalized": "index.json", "antigravity": "index.json"}[self.kind]
         return (home/marker).exists() or (self.kind == "claude" and (home/"history.jsonl").exists())
 
     def map_path(self, path, reverse=False):
@@ -139,7 +139,12 @@ class Agent:
         directory = Path(cwd).expanduser().resolve()
         if not directory.is_dir():
             raise ValueError("La carpeta no existe: " + str(directory))
-        return subprocess.run(self.argv(directory, session, prompt_file, fork), cwd=directory, check=False).returncode
+        if self.kind == "antigravity" and session:
+            from .antigravity import run
+            checked = run("",session,probe=True,cwd=directory)
+            if checked.get("error"):raise ValueError(checked["error"])
+        options = {"env": {**os.environ, "AGY_CLI_DISABLE_AUTO_UPDATE": "true"}} if self.kind == "antigravity" else {}
+        return subprocess.run(self.argv(directory, session, prompt_file, fork), cwd=directory, check=False, **options).returncode
 
 
 def registry(config_path=None):
@@ -152,6 +157,9 @@ def registry(config_path=None):
         Agent("claude", "Claude Code", "claude", os.environ.get("CLAUDE_CONFIG_DIR", str(home/".claude")), ["claude"],
               ["--resume", "{session}"], [], ["{prompt}"], ["--resume", "{session}", "--fork-session"]),
         Agent("gemini", "Gemini CLI", "gemini", str(home/".gemini"), ["gemini"], ["--resume", "{session}"], [], ["-i", "{prompt}"]),
+        Agent("antigravity", "Antigravity CLI", "antigravity",
+              str(Path(os.environ.get("XDG_STATE_HOME",str(home/".local/state")))/"agent-hub/adapters/antigravity"),
+              ["agy"], ["--conversation", "{session}"], [], ["-i", "{prompt}"]),
         Agent("opencode", "OpenCode", "opencode", str(home/".local/share/opencode"), ["opencode"],
               ["--session", "{session}"], [], ["--prompt", "{prompt}"], ["--session", "{session}", "--fork"]),
     ]
