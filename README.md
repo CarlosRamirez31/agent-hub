@@ -70,6 +70,33 @@ Los cambios hechos desde el CLI se aplican al volver a abrir `agent-hub`; los aj
 
 `accent` controla títulos, divisores y avisos; `secondary`, los detalles; `selection_fg` y `selection_bg`, el texto y fondo de la fila seleccionada. Colores disponibles: `black`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan`, `white` y `default` (color del terminal). Puedes omitir `colors` o cualquiera de sus campos para heredar del tema. En terminales sin color la selección permanece visible por inversión.
 
+## Uso disponible y reinicios
+
+Dentro de cada agente, el pie muestra el porcentaje **restante**, el periodo real,
+el tiempo hasta el reinicio y su fecha/hora local. `u` actualiza; `U` abre el detalle
+si existen más ventanas de las que caben en el pie. Las acciones `n Nueva conversación`
+y `o Abrir` permanecen visibles aunque la carpeta tenga chats.
+
+La consulta se hace en segundo plano al entrar y se comparte en caché durante
+cinco minutos dentro del proceso. Volver de una conversación o pulsar `u` permite
+refrescarla, con una separación mínima de 15 segundos. La cuenta atrás se actualiza
+sin consultar la cuenta a cada segundo. No se llama al modelo para obtener cuotas.
+
+- Codex: [`account/rateLimits/read`](https://learn.chatgpt.com/docs/app-server)
+  mediante el app-server instalado; las ventanas publicadas determinan los periodos.
+- Antigravity: [`/usage`](https://www.antigravity.google/docs/cli/commands/usage)
+  en modo estructurado, con los grupos de modelos y sus reinicios independientes.
+- Hermes: `hermes usage --json` del proveedor configurado, dentro de su contenedor
+  cuando corresponde. La cuota pertenece a la cuenta del proveedor; usar esa misma
+  cuenta desde otro agente también puede consumirla.
+
+No se leen archivos de credenciales ni se usan endpoints privados desde el Hub:
+la autenticación la resuelve cada cliente nativo. Si no hay dato diario o mensual,
+no se inventa ni se estima a partir de tokens locales. Un error conserva la última
+lectura marcada como anterior; si no hubo una lectura válida, indica no disponible.
+Que pase la hora de reinicio no supone automáticamente que el saldo volvió a 100%:
+se confirma en la siguiente consulta. Demo nunca consulta cuentas.
+
 ## Navegación
 
 | Tecla | Acción |
@@ -78,7 +105,7 @@ Los cambios hechos desde el CLI se aplican al volver a abrir `agent-hub`; los aj
 | `l`, derecha, `Enter` en carpeta | Entrar a sus conversaciones |
 | `h`, izquierda | Volver a carpetas |
 | `Tab` | Entrar al espacio seleccionado o volver al panel izquierdo |
-| `Enter` en un chat | Continuar la misma conversación nativa |
+| `o`, `Enter` en un chat | Abrir y continuar la misma conversación nativa |
 | `f` | Fork nativo, cuando el agente lo admite |
 | `x` | Pasar el contexto seleccionado a otro agente y abrir la continuación |
 | `A` | Cambiar de agente |
@@ -88,6 +115,7 @@ Los cambios hechos desde el CLI se aplican al volver a abrir `agent-hub`; los aj
 | `y` | Guardar la ruta JSON del chat en el estado local |
 | `p` | Agregar una carpeta, aunque no tenga chats |
 | `n` | Nueva conversación en la carpeta seleccionada |
+| `u` / `U` | Actualizar cuota / ver todos los límites y próximos reinicios |
 | `/`, `Esc` | Filtrar la lista abierta y limpiar la búsqueda; sin filtro, volver a carpetas |
 | `t`, `g/G` | Recientes y principio/final de una lista |
 | espacio | Favorito |

@@ -44,6 +44,29 @@ class NavigationTests(unittest.TestCase):
             hub = Hub(screen, Library(None), chats, "/not-used", demo=True, projects=projects)
         return hub, screen
 
+    def test_open_shortcut_enters_folder_then_resumes_selected_chat(self):
+        hub, screen = self.make_hub()
+        screen.events = ['o', 'j', 'o', 'q']
+        with patch.object(hub, 'open_chat') as opened:
+            hub.run()
+        opened.assert_called_once_with(hub.current()[1])
+
+    def test_actions_and_remaining_quota_are_visible_without_overlapping_chats(self):
+        hub, screen = self.make_hub()
+        from types import SimpleNamespace
+        hub.usage = SimpleNamespace(lines=lambda: ['CUOTA', '5 h: 82% restante · reinicia en 1h', 'Semana: 46% restante'])
+        for height in (16, 28):
+            recorded = []
+            with patch.object(screen, 'getmaxyx', return_value=(height, 120)), patch.object(screen, 'addnstr', side_effect=lambda *args: recorded.append(args)):
+                hub.draw()
+            text = ' '.join(str(args[2]) for args in recorded)
+            self.assertIn('Nueva conversación', text)
+            self.assertIn('82% restante', text)
+            self.assertIn('Semana: 46%', text)
+            quota_rows = {args[0] for args in recorded if 'restante' in str(args[2])}
+            chat_rows = {args[0] for args in recorded if 'Newer one' in str(args[2]) or 'Two chat' in str(args[2])}
+            self.assertFalse(quota_rows & chat_rows)
+
     def test_d_requires_explicit_confirmation_and_cancel_keeps_chat(self):
         hub, screen = self.make_hub()
         def unchanged():

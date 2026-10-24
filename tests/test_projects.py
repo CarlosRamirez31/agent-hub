@@ -152,6 +152,7 @@ class FolderPickerTests(unittest.TestCase):
             record = root / "arguments.json"
             stub = root / "codex"
             stub.write_text("#!" + sys.executable + "\nimport sys,json,os\nfrom pathlib import Path\n"
+                            "if sys.argv[1:2] == ['app-server']: sys.exit(0)\n"
                             "Path(os.environ['HUB_TEST_RECORD']).write_text(json.dumps(sys.argv[1:]))\n")
             stub.chmod(0o755)
             env.update(PATH=str(root) + os.pathsep + os.environ["PATH"], HUB_TEST_RECORD=str(record))

@@ -34,6 +34,10 @@ class Hub:
         self.message = "j/k elige carpeta · l entra · Enter continúa el chat · h vuelve"
         self.style = Style()
         prepare_input(self.screen)
+        self.usage = None
+        if adapter is not None and not demo:
+            from .usage import for_agent
+            self.usage = for_agent(adapter)
 
     def color(self, pair):
         return self.style.color(pair)
@@ -82,6 +86,7 @@ class Hub:
         self.put(1, 2, "◈  AGENT HUB", curses.A_BOLD | self.color(1))
         self.put(1, 23, self.adapter.name if self.adapter else "tu espacio de conversaciones", curses.A_DIM)
         self.put(2, 2, "DEMO · datos ficticios" if self.demo else "LOCAL · sin telemetría", self.color(3))
+        self.put(3, 2, "[n Nueva conversación]  [o Abrir]  [u Actualizar cuota]", self.color(1))
         chats = self.current()
         self.selected = max(0, min(self.selected, max(0, len(chats)-1)))
         side = max(28, min(60, width*45//100))
@@ -90,7 +95,7 @@ class Hub:
         heading = active_project.name if active_project else {"recent": "Recientes", "pinned": "Favoritos"}.get(self.group[0], self.group[1])
         self.put(4, side+3, f"{heading} · {len(chats)}" + (" · Archivados" if self.archives else ""),
                  curses.A_BOLD if self.focus else curses.A_DIM)
-        room = height-10
+        room = height-13
         start = max(0, self.nav-room+1)
         for row, item in enumerate(rows[start:start+room], 5):
             index = start+row-5
@@ -98,9 +103,9 @@ class Hub:
             if (item.kind, item.value) == self.group and not (index == self.nav and not self.focus):
                 attr = curses.A_BOLD | self.color(1)
             self.put(row, 2, " " + item.label.ljust(side-3), attr, side-2)
-        for y in range(4, height-4):
+        for y in range(4, height-8):
             self.put(y, side, "│", self.color(1))
-        list_rows = max(1, (height-12)//2)
+        list_rows = max(1, (height-15)//2)
         offset = max(0, self.selected-list_rows+1)
         for row, chat in enumerate(chats[offset:offset+list_rows]):
             index = offset+row
@@ -116,11 +121,16 @@ class Hub:
         if not chats:
             self.put(7, side+3, "No hay chats en esta vista.", curses.A_DIM)
             self.put(9, side+3, "n crea uno · / busca · a archivados", curses.A_DIM)
+        quota = self.usage.lines() if self.usage else ["CUOTA · demo sin consultas" if self.demo else "CUOTA · agente no configurado"]
+        for index, line in enumerate(quota[:3]):
+            self.put(height-8+index, 2, line, self.color(3) if index else curses.A_DIM)
+        if len(quota) > 3:
+            self.put(height-6, 2, "Más ventanas: U muestra todos los límites y reinicios", self.color(3))
         project = next((p for p in self.projects if p.id == self.group[1]), None)
         detail = " · ".join(project.roots) if project else "Recientes" if self.group[0] == "recent" else self.group[1]
         self.put(height-5, side+3, ("Buscar: " + self.query) if self.query else detail, self.color(3))
         self.put(height-3, 2, self.message, self.color(1))
-        self.put(height-2, 2, "j/k mover · l entrar · h volver · Enter continuar · f copia · p carpeta · d eliminar · S colores · q salir", curses.A_DIM)
+        self.put(height-2, 2, "n nueva · o/Enter abrir · j/k mover · h volver · f copia · p carpeta · d eliminar · q salir", curses.A_DIM)
         self.put(height-1, 2, "/ buscar · t recientes · x pasar contexto · A agentes · y ruta JSON · R sincronizar · T tareas · ? ayuda", curses.A_DIM)
         self.screen.refresh()
 
@@ -267,6 +277,8 @@ class Hub:
             self.screen.keypad(True)
             self.screen.clear()
         self.reload()
+        if self.usage:
+            self.usage.refresh(force=True)
 
     def transfer_chat(self, chat):
         if not self.manager:
@@ -364,6 +376,39 @@ class Hub:
         else:
             self.message = "d elimina el chat seleccionado o una carpeta de proyectos; no elimina Recientes ni secciones."
 
+    def usage_details(self):
+        offset = 0
+        while True:
+            self.screen.erase()
+            height, width = self.screen.getmaxyx()
+            lines = self.usage.lines() if self.usage else ["Cuota no disponible en demo."]
+            wrapped = [part for line in lines for part in textwrap.wrap(clean(line), max(20, width-4))]
+            room = max(1, height-5)
+            offset = max(0, min(offset, max(0, len(wrapped)-room)))
+            self.put(1, 2, "USO Y PRÓXIMOS REINICIOS", curses.A_BOLD | self.color(1))
+            for y, line in enumerate(wrapped[offset:offset+room], 3):
+                self.put(y, 2, line, self.color(3))
+            self.put(height-1, 2, "j/k desplaza · u actualizar · Enter/Esc vuelve", curses.A_DIM)
+            self.screen.refresh()
+            timed = hasattr(self.screen, 'timeout')
+            if timed:
+                self.screen.timeout(1000)
+            try:
+                key = read_key(self.screen)
+            except curses.error:
+                continue
+            finally:
+                if timed:
+                    self.screen.timeout(-1)
+            if key in ("q", "\x1b", "\n", "\r", curses.KEY_ENTER):
+                return
+            if key in ("j", curses.KEY_DOWN):
+                offset += 1
+            elif key in ("k", curses.KEY_UP):
+                offset -= 1
+            elif key == "u" and self.usage:
+                self.usage.refresh(force=True)
+
     def help(self):
         self.screen.erase()
         height, width = self.screen.getmaxyx()
@@ -386,7 +431,9 @@ class Hub:
             "El selector admite / para escribir ruta y . para ver carpetas ocultas.",
             "Importa proyectos de Codex, incluso vacíos. Otras carpetas descubre los demás chats.",
             "t: abrir recientes. Los números junto a las carpetas cuentan conversaciones.",
-            "n: chat nuevo en una carpeta. Sal de Codex con /quit para volver al hub.",
+            "n: nueva conversación en la carpeta elegida. o/Enter: abrir la seleccionada.",
+            "u: actualizar cuota; U: ver todos los límites, reinicios y tiempo restante.",
+            "Las cuotas son de la cuenta/proveedor, compartidas con sus otras apps. No se inventan periodos diarios o mensuales.",
             "/: buscar en la lista abierta. Esc limpia la búsqueda. g/G: primero/último.",
             "Espacio: favorito. s: crear sección. m: asignar sección (vacío la quita).",
             "r: título local (vacío restaura el original). a: vista de archivados.",
@@ -394,7 +441,7 @@ class Hub:
             "Al abrir y al volver de Codex también refresca. No sincroniza ChatGPT web.",
             "Las carpetas creadas aquí son locales al hub; no hay sincronización de dos vías.",
             "Solo d confirmado elimina mediante el agente; nunca escribe directamente sus bases. No lee credenciales.",
-            "El hub no usa red. Codex conserva su propia configuración e integraciones.",
+            "Las cuotas se consultan mediante el cliente nativo, sin pedir respuestas al modelo ni leer sus credenciales.",
             "Actualización manual: agent-hub update (conecta solo con tu repo GitHub).",
             "j/k desplaza esta ayuda; Enter o Esc vuelve.",
         ]
@@ -420,8 +467,19 @@ class Hub:
     def run(self):
         while True:
             prepare_input(self.screen)
+            if self.usage:
+                self.usage.refresh()
             self.draw()
-            key = read_key(self.screen)
+            timed = hasattr(self.screen, 'timeout')
+            if timed:
+                self.screen.timeout(1000)
+            try:
+                key = read_key(self.screen)
+            except curses.error:
+                continue
+            finally:
+                if timed:
+                    self.screen.timeout(-1)
             rows = self.rows()
             row = rows[self.nav]
             chats = self.current()
@@ -434,6 +492,12 @@ class Hub:
                     continue
                 if key == "S":
                     self.style = Style(edit_style(self.screen, self.style, persist=not self.demo))
+                elif key == "u":
+                    if self.usage:
+                        started = self.usage.refresh(force=True)
+                        self.message = "Consultando cuota en segundo plano…" if started else "Consulta en curso o reciente; espera unos segundos."
+                elif key == "U":
+                    self.usage_details()
                 elif key == "A" and self.manager:
                     self.next_agent = "select"
                     return
@@ -484,7 +548,7 @@ class Hub:
                         self.nav = index
                     else:
                         self.selected = index
-                elif key in ("\n", "\r", curses.KEY_ENTER):
+                elif key in ("o", "\n", "\r", curses.KEY_ENTER):
                     if self.focus:
                         if chat:
                             self.open_chat(chat)
