@@ -1,4 +1,5 @@
 import json
+from contextlib import closing
 import os
 from pathlib import Path
 import pty
@@ -28,7 +29,7 @@ class StoreTests(unittest.TestCase):
     def test_paginated_chat_and_read_only_index(self):
         with tempfile.TemporaryDirectory() as temporary:
             db = Path(temporary) / "state_5.sqlite"
-            with sqlite3.connect(db) as conn:
+            with closing(sqlite3.connect(db)) as conn, conn:
                 conn.execute("CREATE TABLE threads (id TEXT, title TEXT, cwd TEXT, updated_at INT, archived INT)")
                 conn.execute("INSERT INTO threads VALUES (?, ?, ?, ?, ?)",
                              (ID, "Sin archivo rollout", "/tmp/project", 100, 0))
@@ -40,7 +41,7 @@ class StoreTests(unittest.TestCase):
     def test_unknown_schema_fails_without_modifying(self):
         with tempfile.TemporaryDirectory() as temporary:
             db = Path(temporary) / "state_10.sqlite"
-            with sqlite3.connect(db) as conn:
+            with closing(sqlite3.connect(db)) as conn, conn:
                 conn.execute("CREATE TABLE threads (id TEXT)")
             original = db.read_bytes()
             with self.assertRaisesRegex(ValueError, "índice de Codex cambió"):
@@ -93,6 +94,9 @@ class CommandsTests(unittest.TestCase):
             with patch.dict(os.environ, {"PATH": str(root) + os.pathsep + os.environ["PATH"], "RECORD": str(record)}):
                 self.assertEqual(launch(Chat(ID, "title", str(cwd), 0)), 0)
             self.assertEqual(json.loads(record.read_text()), ["-C", str(cwd), "resume", ID])
+            with patch.dict(os.environ, {"PATH": str(root) + os.pathsep + os.environ["PATH"], "RECORD": str(record)}):
+                self.assertEqual(launch(Chat(ID, "title", str(cwd), 0), fork=True), 0)
+            self.assertEqual(json.loads(record.read_text()), ["-C", str(cwd), "fork", ID])
             self.assertFalse((cwd / "PWNED").exists())
 
     def test_installer_is_idempotent_and_refuses_to_replace(self):
@@ -129,7 +133,7 @@ class TerminalTests(unittest.TestCase):
     def test_real_handoff_to_local_codex_stub_returns_to_hub(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            with sqlite3.connect(root / "state_5.sqlite") as conn:
+            with closing(sqlite3.connect(root / "state_5.sqlite")) as conn, conn:
                 conn.execute("CREATE TABLE threads (id TEXT, title TEXT, cwd TEXT, updated_at INT, archived INT)")
                 conn.execute("INSERT INTO threads VALUES (?, 'Test chat', ?, 1, 0)", (ID, str(root)))
             stub = root / "codex"
@@ -156,7 +160,7 @@ class TerminalTests(unittest.TestCase):
 
             try:
                 wait_for(b"Test chat")
-                os.write(master, b"l\n")
+                os.write(master, b"t\n")
                 wait_for(b"LOCAL_CODEX_STUB")
                 wait_for(b"Tu biblioteca sigue")
                 os.write(master, b"q")

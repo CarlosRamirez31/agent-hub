@@ -6,20 +6,15 @@ Tus conversaciones de Codex en una interfaz de terminal con proyectos, secciones
  ◈ CODEX HUB         tu espacio de conversaciones
  LOCAL · sin telemetría
 
- PROYECTOS                         │ CONVERSACIONES
-   ▾ dotfiles (2)                  │ Mi configuración de Neovim
-       Mi configuración de Neovim  │   23 oct 20:30 · ~/proyectos/dotfiles
-       Ajustar los atajos          │
-   ▾ codex-hub (0)                 │ Ajustar los atajos
-       + Nueva conversación        │   23 oct 19:15 · ~/proyectos/dotfiles
+ PROYECTOS                         │ dotfiles · 2
+   ▸ dotfiles (2)                  │ Mi configuración de Neovim
+   ▸ codex-hub (0)                 │   23 oct 20:30 · ~/proyectos/dotfiles
    + Agregar carpeta               │
-   RECIENTES                       │
-     Mi configuración de Neovim     │
-     Ajustar los atajos             │
-   ★ Favoritos                     │
+   Recientes (2)                   │ Ajustar los atajos
+   ★ Favoritos                     │   23 oct 19:15 · ~/proyectos/dotfiles
    ▸ Otras carpetas (1)            │
 
- j/k mover · h/l árbol · Tab panel · Enter abrir/plegar · p carpeta · n chat
+ j/k mover · l entrar · h volver · Enter continuar · f copia · p carpeta
 ```
 
 ## Instalar tu versión
@@ -45,32 +40,46 @@ Para probar sin instalar ni abrir chats reales:
 
 | Tecla | Acción |
 |---|---|
-| `h/l`, izquierda/derecha | Plegar/expandir proyecto; `h` vuelve desde un chat al proyecto |
-| `Tab` | Cambiar entre árbol y lista de conversaciones |
-| `j/k`, arriba/abajo | Navegar |
+| `l`, derecha | Entrar a la carpeta seleccionada y enfocar sus conversaciones |
+| `h`, izquierda | Volver a la lista de carpetas |
+| `Tab` | Entrar a la carpeta seleccionada o volver al panel izquierdo |
+| `j/k`, arriba/abajo | Navegar; en carpetas no cambia la lista derecha |
 | `g/G` | Ir al principio/final |
-| `Enter` | Plegar/expandir proyecto, abrir chat, activar «Ver más» o «Agregar carpeta» |
+| `Enter` | Entrar a una carpeta o continuar la conversación seleccionada |
+| `f` | Continuar en una copia independiente del chat seleccionado |
 | `p` | Agregar carpeta con un selector de directorios |
 | `n` | Chat nuevo en el proyecto seleccionado: confirmar o escribir carpeta; `Ctrl+U` limpia |
 | `t` | Saltar a recientes, ordenados por última actividad |
-| `/`, `Esc` | Buscar globalmente por título/carpeta y limpiar búsqueda |
+| `/`, `Esc` | Buscar en la lista abierta y limpiar búsqueda; sin búsqueda, `Esc` vuelve a carpetas |
 | espacio | Marcar/desmarcar favorito |
 | `s` | Crear sección |
 | `m` | Mover chat a una sección; vacío quita la asignación |
 | `r` | Cambiar título local; vacío restaura el título de Codex |
 | `a` | Alternar vista normal/archivados |
-| `R` | Refrescar el índice |
+| `R` | Revisar cambios del índice local mientras el hub está abierto; al iniciar es automático |
 | `?`, `q` | Ayuda y salir |
 
-El panel importa **los proyectos ya registrados en Codex**, con sus nombres, orden y carpetas. Muestra debajo sus conversaciones; cinco inicialmente y luego «Ver más». Los recientes aparecen también en una lista independiente. Los proyectos se pueden plegar y expandir.
+El panel izquierdo muestra **los proyectos ya registrados en Codex**, sus nombres y la cantidad de conversaciones de cada uno. No duplica los chats debajo de las carpetas. Moverte con `j/k` solo cambia la selección izquierda: el contenido y la selección de la derecha permanecen iguales.
+
+Sitúate en una carpeta, pulsa **`l`** y busca la conversación a la derecha con `j/k` o `/`. **`Enter` continúa la misma conversación** y `h` vuelve a las carpetas. `t` abre los recientes; `/` filtra la lista que tienes abierta, por lo que dentro de un proyecto busca solo sus conversaciones. Los contadores de las carpetas muestran el total, incluso mientras filtras.
 
 Para agregar un proyecto sin conversaciones, pulsa `p` o selecciona **+ Agregar carpeta**. En el selector, `j/k` navega, `Enter/l` entra, `h` sube, `.` muestra carpetas ocultas y `/` permite escribir una ruta (`Ctrl+U` limpia). **Espacio agrega la carpeta abierta**; `Esc` cancela. No crea ni borra directorios. El proyecto se conserva al reiniciar el hub y `n` inicia su primera conversación en esa ruta.
 
 El hub usa la asociación de proyecto de Codex cuando está disponible; en los demás casos asigna cada chat a la raíz de proyecto más específica que contiene su carpeta, incluidas subcarpetas. Admite proyectos con varias raíces. Las carpetas con chats que no pertenecen a un proyecto registrado se encuentran bajo **Otras carpetas**; sus conversaciones también están en recientes. Las carpetas registradas varias veces por la misma ruta o un enlace simbólico no se duplican en el hub.
 
-Los proyectos agregados desde el hub, favoritos, títulos y secciones se guardan en su propia biblioteca local. No modifican la organización de la app de Codex. `R` vuelve a importar los proyectos y chats desde disco. En proyectos con varias raíces, `n` propone la primera; puedes cambiar la ruta antes de iniciar Codex.
+Los proyectos agregados desde el hub, favoritos, títulos y secciones se guardan en su propia biblioteca local. No modifican la organización de la app de Codex. En proyectos con varias raíces, `n` propone la primera; puedes cambiar la ruta antes de iniciar Codex.
 
-Al abrir un chat, el hub cede la terminal al **Codex CLI real** usando su ID y carpeta. Al salir de Codex (`/quit`), vuelve al selector. La primera versión no mantiene el panel lateral visible mientras escribes en Codex ni gestiona varias terminales simultáneas. Evita abrir en dos sitios una conversación que ya esté en uso.
+## Actualización de carpetas y conversaciones
+
+**Al abrir el hub la lectura del índice local de Codex es automática, desde la primera apertura; no tienes que pulsar `R`.** Las carpetas existentes se reutilizan por ID y ruta. No se crean directorios, no se duplican proyectos y no se reescribe la biblioteca si no cambias su organización. El índice se lee para detectar proyectos nuevos, cambios y eliminaciones.
+
+Las conversaciones o proyectos eliminados desde la app de Codex dejan de aparecer como elementos importados en la siguiente apertura, cuando Codex haya actualizado su índice. Si eliminas un proyecto pero conservas sus conversaciones, estas siguen en recientes y su ruta puede aparecer bajo «Otras carpetas». Las carpetas que agregaste solo en el hub se conservan en su biblioteca independiente.
+
+Mientras el hub permanece abierto, `R` permite revisar cambios sin reiniciarlo. También revisa el índice al volver de una conversación de Codex. No hay sondeo continuo, sincronización de dos vías ni conexión con el historial de ChatGPT web.
+
+Al abrir un chat, el hub cede la terminal al **Codex CLI real** usando su ID y carpeta. Al salir de Codex (`/quit`), vuelve al selector. El hub no mantiene el panel lateral visible mientras escribes en Codex ni gestiona varias terminales simultáneas.
+
+Si Codex muestra **«This conversation is open in another app»**, cierra esa conversación en la otra app y pulsa `r` en esa pantalla para reintentar. Ese aviso es un bloqueo de la conversación, distinto de la revisión de proyectos con `R` en el hub. Si prefieres dejar abierta la original, usa `f` para continuar en una copia; puedes hacerlo desde esa pantalla o desde la lista de chats del hub. El hub no fuerza ni elimina bloqueos.
 
 ## Privacidad y conexiones
 

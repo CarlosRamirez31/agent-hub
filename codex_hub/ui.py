@@ -21,15 +21,13 @@ class Hub:
         self.home, self.demo = home, demo
         self.imported = list(projects)
         self.projects = project_catalog(chats, self.imported, library)
-        self.expanded = {p.id for p in self.projects if p.source != "discovered"}
-        self.limits = {}
         self.others = False
         self.group = ("recent", "")
         self.focus = 0
         self.nav = self.selected = 0
         self.query = ""
         self.archives = False
-        self.message = "Todo local · Enter abre Codex · al salir vuelves aquí"
+        self.message = "j/k elige carpeta · l entra · Enter continúa el chat · h vuelve"
         self.colors = False
         try:
             curses.curs_set(0)
@@ -60,23 +58,26 @@ class Hub:
                 pass
 
     def rows(self):
-        return sidebar(self.chats, self.projects, self.library, self.expanded,
-                       self.limits, self.query, self.archives, self.others)
+        return sidebar(self.chats, self.projects, self.library, self.archives, self.others)
 
     def sync(self):
         rows = self.rows()
         self.nav = min(self.nav, len(rows)-1)
-        row = rows[self.nav]
-        if self.focus == 0:
-            group = (("project", row.parent) if row.parent else ("recent", "")) if row.kind == "chat" else (row.kind, row.value)
-            if group[0] in ("project", "recent", "pinned", "section"):
-                if self.group != group:
-                    self.selected = 0
-                self.group = group
-            if row.kind == "chat":
-                self.selected = next((i for i, c in enumerate(self.current()) if c.id == row.value), 0)
         self.selected = min(self.selected, max(0, len(self.current())-1))
         return rows
+
+    def enter_space(self, row):
+        """Commit a folder only on l/Enter/Tab, never while hovering over it."""
+        if row.kind in ("project", "recent", "pinned", "section"):
+            group = (row.kind, row.value)
+            if group != self.group:
+                self.query, self.selected = "", 0
+            self.group, self.focus = group, 1
+            self.message = "j/k elige chat · Enter continúa · f crea copia · h vuelve a carpetas"
+        elif row.kind == "add":
+            self.add_folder()
+        elif row.kind == "others":
+            self.others = not self.others
 
     def current(self):
         return visible(self.chats, self.library, self.group, self.query, self.archives, self.projects)
@@ -96,15 +97,17 @@ class Hub:
         self.selected = min(self.selected, max(0, len(chats)-1))
         side = max(28, min(60, width*45//100))
         self.put(4, 2, "PROYECTOS", curses.A_BOLD if self.focus == 0 else curses.A_DIM)
-        self.put(4, side+3, f"{'ARCHIVADOS' if self.archives else 'CONVERSACIONES'}  {len(chats)}",
+        active_project = next((p for p in self.projects if self.group == ("project", p.id)), None)
+        heading = active_project.name if active_project else {"recent": "Recientes", "pinned": "Favoritos"}.get(self.group[0], self.group[1])
+        self.put(4, side+3, f"{heading} · {len(chats)}" + (" · Archivados" if self.archives else ""),
                  curses.A_BOLD if self.focus else curses.A_DIM)
         room = height-10
         start = max(0, self.nav-room+1)
         for row, item in enumerate(rows[start:start+room], 5):
             index = start+row-5
-            attr = self.color(2) | curses.A_BOLD if index == self.nav else curses.A_NORMAL
-            if item.kind == "recent" and index != self.nav:
-                attr = curses.A_BOLD | self.color(3)
+            attr = self.color(2) | curses.A_BOLD if index == self.nav and not self.focus else curses.A_NORMAL
+            if (item.kind, item.value) == self.group and not (index == self.nav and not self.focus):
+                attr = curses.A_BOLD | self.color(1)
             self.put(row, 2, " " + item.label.ljust(side-3), attr, side-2)
         for y in range(4, height-4):
             self.put(y, side, "│", self.color(1))
@@ -113,7 +116,7 @@ class Hub:
         for row, chat in enumerate(chats[offset:offset+list_rows]):
             index = offset+row
             meta = self.library.meta(chat)
-            attr = self.color(2) | curses.A_BOLD if index == self.selected else curses.A_BOLD
+            attr = (self.color(2) if self.focus else self.color(1)) | curses.A_BOLD if index == self.selected else curses.A_BOLD
             title = ("★ " if meta.get("pinned") else "  ") + (meta.get("title") or chat.title)
             self.put(6+row*2, side+3, title.ljust(width-side-5), attr)
             try:
@@ -128,8 +131,8 @@ class Hub:
         detail = " · ".join(project.roots) if project else "Recientes" if self.group[0] == "recent" else self.group[1]
         self.put(height-5, side+3, ("Buscar: " + self.query) if self.query else detail, self.color(3))
         self.put(height-3, 2, self.message, self.color(1))
-        self.put(height-2, 2, "j/k mover · h/l árbol · Tab panel · Enter abrir/plegar · p carpeta · n chat · q salir", curses.A_DIM)
-        self.put(height-1, 2, "/ buscar · t recientes · espacio ★ · s sección · m mover · r título · a archivados · ? ayuda", curses.A_DIM)
+        self.put(height-2, 2, "j/k mover · l entrar · h volver · Enter continuar · f copia · p carpeta · n chat · q salir", curses.A_DIM)
+        self.put(height-1, 2, "/ buscar aquí · t recientes · espacio ★ · s sección · m mover · r título · R sincronizar · ? ayuda", curses.A_DIM)
         self.screen.refresh()
 
     def prompt(self, label, initial=""):
@@ -158,13 +161,13 @@ class Hub:
         if not self.demo:
             self.chats = read_chats(self.home)
             self.imported = read_projects(self.home)
-        previous = {p.id for p in self.projects}
         self.projects = project_catalog(self.chats, self.imported, self.library)
-        self.expanded.update(p.id for p in self.projects if p.id not in previous and p.source != "discovered")
+        if self.group[0] == "project" and not any(p.id == self.group[1] for p in self.projects):
+            self.group, self.query, self.selected = ("recent", ""), "", 0
 
     def select_project(self, ident):
         self.nav = next((i for i, row in enumerate(self.rows()) if row.kind == "project" and row.value == ident), 0)
-        self.focus, self.selected = 0, 0
+        self.focus = 0
 
     def add_folder(self):
         path = self.pick_folder()
@@ -174,13 +177,14 @@ class Hub:
         existing = next((p for p in self.projects if root in p.roots and p.source != "discovered"), None)
         ident = existing.id if existing else self.library.add_project(root)
         self.reload()
-        self.expanded.add(ident)
         self.select_project(ident)
         self.message = "Carpeta agregada. n crea su primera conversación."
 
     def pick_folder(self):
         """Select an existing folder; never create or remove filesystem entries."""
-        project = next((p for p in self.projects if p.id == self.group[1]), None)
+        hovered = self.rows()[self.nav]
+        ident = hovered.value if not self.focus and hovered.kind == "project" else self.group[1]
+        project = next((p for p in self.projects if p.id == ident), None)
         current = Path(project.roots[0]) if project and project.roots and Path(project.roots[0]).is_dir() else Path.cwd()
         selected, hidden = 0, False
         notice = ""
@@ -234,7 +238,9 @@ class Hub:
                         notice = "La carpeta no existe: " + str(candidate)
 
     def new_chat(self, project_id=""):
-        project = next((p for p in self.projects if p.id == (project_id or self.group[1])), None)
+        hovered = self.rows()[self.nav]
+        ident = project_id or (hovered.value if not self.focus and hovered.kind == "project" else self.group[1])
+        project = next((p for p in self.projects if p.id == ident), None)
         chats = self.current()
         chat = chats[self.selected] if chats else None
         default = project.roots[0] if project and project.roots else chat.cwd if chat else str(Path.cwd())
@@ -242,7 +248,7 @@ class Hub:
         if cwd:
             self.open_chat(cwd=cwd)
 
-    def open_chat(self, chat=None, cwd=None):
+    def open_chat(self, chat=None, cwd=None, fork=False):
         if self.demo:
             self.message = "Modo demo: no inicia Codex ni guarda cambios."
             return
@@ -251,7 +257,7 @@ class Hub:
         curses.endwin()
         try:
             try:
-                code = launch(chat, cwd)
+                code = launch(chat, cwd, fork=fork)
             except KeyboardInterrupt:
                 code = 130
             self.message = f"Codex terminó ({code}). Tu biblioteca sigue aquí."
@@ -266,31 +272,46 @@ class Hub:
         height, width = self.screen.getmaxyx()
         lines = [
             "CODEX HUB · AYUDA",
-            "j/k: navega. h/l: pliega/expande proyectos. Tab: cambia de panel.",
-            "Enter en proyecto: pliega/expande. Enter en un chat: continúa en Codex.",
+            "j/k en carpetas solo cambia la selección; la lista derecha permanece igual.",
+            "l, Enter o Tab en carpeta: entra a sus conversaciones. h: vuelve a carpetas.",
+            "j/k en conversaciones: elige chat. Enter: continúa la MISMA conversación.",
+            "f en conversaciones: continúa en una copia independiente (Codex fork).",
+            "Si Codex dice 'open in another app': cierra ese chat allí y pulsa r para reintentar.",
+            "También puedes usar f en esa pantalla para crear una copia; no fuerza el desbloqueo.",
             "p o + Agregar carpeta: selector de carpetas. Espacio agrega la carpeta abierta.",
             "El selector admite / para escribir ruta y . para ver carpetas ocultas.",
             "Importa proyectos de Codex, incluso vacíos. Otras carpetas descubre los demás chats.",
-            "t: ir a recientes. Ver más: mostrar más conversaciones del proyecto o recientes.",
+            "t: abrir recientes. Los números junto a las carpetas cuentan conversaciones.",
             "n: chat nuevo en una carpeta. Sal de Codex con /quit para volver al hub.",
-            "/: buscar título o carpeta. Esc limpia la búsqueda. g/G: primero/último.",
+            "/: buscar en la lista abierta. Esc limpia la búsqueda. g/G: primero/último.",
             "Espacio: favorito. s: crear sección. m: asignar sección (vacío la quita).",
             "r: título local (vacío restaura el original). a: vista de archivados.",
-            "R: refrescar. Los títulos, favoritos y secciones son propios del hub.",
+            "R: releer proyectos/chats y sus eliminaciones del índice local de Codex.",
+            "Al abrir y al volver de Codex también refresca. No sincroniza ChatGPT web.",
+            "Las carpetas creadas aquí son locales al hub; no hay sincronización de dos vías.",
             "No elimina chats ni modifica el índice de Codex. No lee credenciales.",
             "El hub no usa red. Codex conserva su propia configuración e integraciones.",
             "Actualización manual: codex-hub update (conecta solo con tu repo GitHub).",
-            "Pulsa una tecla para volver.",
+            "j/k desplaza esta ayuda; Enter o Esc vuelve.",
         ]
-        row = 1
-        for line in lines:
-            for wrapped in textwrap.wrap(line, max(20, width-4)):
-                if row < height-1:
-                    self.put(row, 2, wrapped, self.color(1) if row == 1 else 0)
-                    row += 1
-            row += 1
-        self.screen.refresh()
-        self.screen.get_wch()
+        offset = 0
+        while True:
+            self.screen.erase()
+            height, width = self.screen.getmaxyx()
+            wrapped = [part for line in lines for part in [*textwrap.wrap(line, max(20, width-4)), ""]]
+            room = max(1, height-3)
+            offset = min(offset, max(0, len(wrapped)-room))
+            for row, line in enumerate(wrapped[offset:offset+room], 1):
+                self.put(row, 2, line)
+            self.put(height-1, 2, "j/k desplaza · Enter/Esc vuelve", self.color(1))
+            self.screen.refresh()
+            key = self.screen.get_wch()
+            if key in ("j", curses.KEY_DOWN):
+                offset += 1
+            elif key in ("k", curses.KEY_UP):
+                offset = max(0, offset-1)
+            else:
+                return
 
     def run(self):
         while True:
@@ -307,24 +328,15 @@ class Hub:
                 if height < 16 or width < 66:
                     continue
                 if key in ("h", curses.KEY_LEFT):
+                    self.focus = 0
+                elif key == "\t":
                     if self.focus:
                         self.focus = 0
-                    elif row.kind == "project":
-                        self.expanded.discard(row.value)
-                    elif row.parent:
-                        self.select_project(row.parent)
-                    elif row.kind in ("more", "empty") and row.value != "recent":
-                        self.select_project(row.value)
-                elif key == "\t":
-                    self.focus = 1-self.focus
-                elif key in ("l", curses.KEY_RIGHT):
-                    if self.focus == 0 and row.kind == "project":
-                        if row.value in self.expanded:
-                            self.nav = min(self.nav+1, len(rows)-1)
-                        else:
-                            self.expanded.add(row.value)
                     else:
-                        self.focus = 1
+                        self.enter_space(row)
+                elif key in ("l", curses.KEY_RIGHT):
+                    if self.focus == 0:
+                        self.enter_space(row)
                 elif key in ("j", "k", curses.KEY_UP, curses.KEY_DOWN, "g", "G"):
                     count = len(rows) if self.focus == 0 else len(chats)
                     index = self.nav if self.focus == 0 else self.selected
@@ -336,54 +348,41 @@ class Hub:
                         index += 1 if key in ("j", curses.KEY_DOWN) else -1
                     index = max(0, min(index, count-1))
                     if self.focus == 0:
-                        self.nav, self.selected = index, 0
+                        self.nav = index
                     else:
                         self.selected = index
                 elif key in ("\n", "\r", curses.KEY_ENTER):
                     if self.focus:
                         if chat:
                             self.open_chat(chat)
-                    elif row.kind == "project":
-                        if row.value in self.expanded:
-                            self.expanded.remove(row.value)
-                        else:
-                            self.expanded.add(row.value)
-                    elif row.kind == "chat":
-                        selected = next((c for c in self.chats if c.id == row.value), None)
-                        if selected:
-                            self.open_chat(selected)
-                    elif row.kind == "more":
-                        self.limits[row.value] = self.limits.get(row.value, 10 if row.value == "recent" else 5)+20
-                    elif row.kind == "add":
-                        self.add_folder()
-                    elif row.kind == "empty":
-                        self.new_chat(row.value)
-                    elif row.kind == "others":
-                        self.others = not self.others
                     else:
-                        self.focus = 1
+                        self.enter_space(row)
+                elif key == "f" and self.focus and chat:
+                    self.open_chat(chat, fork=True)
                 elif key == "/":
+                    self.focus = 1
                     query = self.prompt("Buscar", self.query)
                     if query is not None:
                         self.query, self.selected = query, 0
-                        self.group, self.focus = ("recent", ""), 1
-                        self.nav = next(i for i, r in enumerate(self.rows()) if r.kind == "recent")
                 elif key == "\x1b":
-                    self.query, self.selected = "", 0
+                    if self.query:
+                        self.query, self.selected = "", 0
+                    else:
+                        self.focus = 0
                 elif key == "a":
                     self.archives = not self.archives
                     self.selected = 0
                 elif key == "R":
-                    identity = (row.kind, row.value, row.parent)
+                    identity = (row.kind, row.value)
                     self.reload()
                     self.nav = next((i for i, r in enumerate(self.rows())
-                                     if (r.kind, r.value, r.parent) == identity), 0)
+                                     if (r.kind, r.value) == identity), 0)
                     self.message = "Índice actualizado desde disco."
                 elif key == "p":
                     self.add_folder()
                 elif key == "t":
                     self.nav = next(i for i, r in enumerate(rows) if r.kind == "recent")
-                    self.focus, self.selected = 0, 0
+                    self.enter_space(rows[self.nav])
                 elif key == "n":
                     self.new_chat()
                 elif key == "s":
@@ -391,14 +390,14 @@ class Hub:
                     if name:
                         self.library.add_section(name)
                         self.message = "Sección creada: " + name
-                elif key == " " and chat and (self.focus or row.kind == "chat"):
+                elif key == " " and chat and self.focus:
                     self.library.change(chat, pinned=not self.library.meta(chat).get("pinned"))
-                elif key == "m" and chat and (self.focus or row.kind == "chat"):
+                elif key == "m" and chat and self.focus:
                     section = self.prompt("Sección (vacío quita)", self.library.meta(chat).get("section", ""))
                     if section is not None:
                         self.library.add_section(section)
                         self.library.change(chat, section=section)
-                elif key == "r" and chat and (self.focus or row.kind == "chat"):
+                elif key == "r" and chat and self.focus:
                     title = self.prompt("Título local (vacío restaura)", self.library.meta(chat).get("title") or chat.title)
                     if title is not None:
                         self.library.change(chat, title=title)

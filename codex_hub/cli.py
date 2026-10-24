@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 UPSTREAM = "https://github.com/CarlosRamirez31/codex-hub.git"
 
 
-def launch(chat=None, cwd=None):
+def launch(chat=None, cwd=None, fork=False):
     executable = shutil.which("codex")
     if not executable:
         raise ValueError("No se encontró codex en PATH. Instala el CLI oficial primero.")
@@ -26,7 +26,7 @@ def launch(chat=None, cwd=None):
         raise ValueError("La carpeta no existe: " + str(directory))
     command = [executable, "-C", str(directory)]
     if chat:
-        command += ["resume", str(uuid.UUID(chat.id))]
+        command += ["fork" if fork else "resume", str(uuid.UUID(chat.id))]
     # An argv array, never a shell. Preserve Codex's own approvals and sandbox.
     return subprocess.run(command, cwd=directory, check=False).returncode
 

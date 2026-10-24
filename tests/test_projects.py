@@ -1,4 +1,5 @@
 import fcntl
+from contextlib import closing
 import json
 import os
 from pathlib import Path
@@ -25,7 +26,7 @@ class ProjectTests(unittest.TestCase):
     def test_import_saved_names_order_empty_projects_and_multiple_roots_read_only(self):
         with tempfile.TemporaryDirectory() as temporary:
             db = Path(temporary) / "state_5.sqlite"
-            with sqlite3.connect(db) as conn:
+            with closing(sqlite3.connect(db)) as conn, conn:
                 conn.executescript("""
                     CREATE TABLE projects (id TEXT, name TEXT, position INT);
                     CREATE TABLE project_roots (project_id TEXT, path TEXT, position INT);
@@ -87,24 +88,56 @@ class ProjectTests(unittest.TestCase):
             self.assertEqual(catalog[1].source, "discovered")
             self.assertEqual([c.id for c in visible(chats, library, ("project", "official"), projects=catalog)], ["c", "a"])
 
-    def test_sidebar_children_more_recent_order_and_collapsed_projects(self):
+    def test_sidebar_has_only_folders_and_counts_with_empty_projects(self):
         library = Library(None)
         project = Project("saved", "PPE", ("/tmp/ppe",))
         empty = Project("empty", "Nuevo", ("/tmp/empty",))
         chats = [Chat(str(i), f"chat {i}", "/tmp/ppe/src", i) for i in range(7)]
         library.change(chats[0], pinned=True)
-        rows = sidebar(chats, [project, empty], library, {"saved", "empty"}, {})
-        self.assertEqual(rows[0].label, "▾ PPE (7)")
-        self.assertEqual(len([r for r in rows if r.kind == "chat" and r.parent == "saved"]), 5)
-        self.assertTrue(any(r.kind == "more" and r.value == "saved" for r in rows))
-        self.assertTrue(any(r.kind == "empty" and r.value == "empty" for r in rows))
-        recent_index = next(i for i, r in enumerate(rows) if r.kind == "recent")
-        self.assertEqual(rows[recent_index+1].value, "6")  # Recents are chronological, even with pins.
-        folded = sidebar(chats, [project], library, set(), {})
-        self.assertFalse(any(r.parent == "saved" for r in folded))
-        expanded = sidebar(chats, [project], library, {"saved"}, {"saved": 25})
-        self.assertEqual(len([r for r in expanded if r.parent == "saved"]), 7)
-        self.assertFalse(any(r.kind == "more" and r.value == "saved" for r in expanded))
+        rows = sidebar(chats, [project, empty], library)
+        self.assertEqual(rows[0].label, "▸ PPE (7)")
+        self.assertEqual(rows[1].label, "▸ Nuevo (0)")
+        self.assertFalse(any(r.kind in ("chat", "empty", "more") for r in rows))
+        self.assertEqual(next(r.label for r in rows if r.kind == "recent"), "Recientes (7)")
+        self.assertEqual(visible(chats, library, ("recent", ""))[0].id, "6")
+
+    def test_opening_automatically_picks_up_additions_deletions_without_duplicating_or_rewriting(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            data = root / "codex"
+            data.mkdir()
+            state = root / "state/codex-hub/library.json"
+            local = Library(state)
+            local.add_project(root)
+            saved = state.read_bytes()
+            with closing(sqlite3.connect(data / "state_5.sqlite")) as conn, conn:
+                conn.executescript("""
+                    CREATE TABLE projects (id TEXT, name TEXT, position INT);
+                    CREATE TABLE project_roots (project_id TEXT, path TEXT, position INT);
+                    CREATE TABLE threads (id TEXT, title TEXT, cwd TEXT, updated_at INT, archived INT);
+                    INSERT INTO projects VALUES ('one', 'One', 0);
+                    INSERT INTO project_roots VALUES ('one', '/tmp/one', 0);
+                """)
+            env = {**os.environ, "CODEX_HOME": str(data), "XDG_STATE_HOME": str(root / "state")}
+
+            def open_count(expected):
+                result = subprocess.run([str(ROOT / "bin/codex-hub"), "--count"], env=env,
+                                        capture_output=True, text=True, check=True)
+                self.assertIn(expected, result.stdout)
+                self.assertEqual(state.read_bytes(), saved)
+                catalog = project_catalog(read_chats(data), read_projects(data), Library(state))
+                self.assertEqual(len({p.id for p in catalog}), len(catalog))
+
+            open_count("1 proyectos")
+            open_count("1 proyectos")
+            with closing(sqlite3.connect(data / "state_5.sqlite")) as conn, conn:
+                conn.execute("INSERT INTO projects VALUES ('two', 'Two', 1)")
+            open_count("2 proyectos")
+            with closing(sqlite3.connect(data / "state_5.sqlite")) as conn, conn:
+                conn.execute("DELETE FROM projects WHERE id='one'")
+                conn.execute("DELETE FROM project_roots WHERE project_id='one'")
+            open_count("1 proyectos")
+            self.assertEqual([p.id for p in read_projects(data)], ["two"])
 
 
 class FolderPickerTests(unittest.TestCase):
