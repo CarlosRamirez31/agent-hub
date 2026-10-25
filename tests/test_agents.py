@@ -37,6 +37,13 @@ def seed(agent, cwd, ident="same-id", text="Continue with marker TEST_CONTEXT", 
 
 
 class AgentTests(unittest.TestCase):
+    def test_codex_uses_a_private_server_so_idle_hooks_keep_launch_identity(self):
+        agent = Agent("codex", "Codex", "codex", "/tmp/codex", ["codex"],
+                      ["-C", "{cwd}", "resume", "{session}"], ["-C", "{cwd}"])
+        with patch("agent_hub.agents.shutil.which", return_value="/usr/bin/codex"):
+            self.assertEqual(agent.argv("/tmp")[:2], ["codex", "--no-daemon"])
+            self.assertEqual(agent.argv("/tmp", "session-1")[:2], ["codex", "--no-daemon"])
+
     def test_new_conversation_has_stable_route_before_native_launch(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -79,7 +86,7 @@ class AgentTests(unittest.TestCase):
     def test_custom_agent_registry_accepts_argv_and_rejects_shell_strings(self):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary)/"agents.json"
-            disabled = [{"id": i, "enabled": False} for i in ("codex", "hermes", "claude", "gemini", "opencode", "antigravity")]
+            disabled = [{"id": i, "enabled": False} for i in ("codex", "hermes", "claude", "gemini", "opencode", "antigravity", "cursor")]
             custom = {"id": "mine", "command": [sys.executable], "home": temporary,
                       "resume": ["--session", "{session}"], "prompt": ["{prompt_file}"]}
             private_json(path, {"version": 1, "agents": disabled+[custom]})
@@ -230,7 +237,7 @@ class AgentTests(unittest.TestCase):
             seed(a, root)
             config = root/"config/agent-hub/agents.json"
             private_json(config, {"version": 1, "agents":
-                [{"id": i, "enabled": False} for i in ("codex", "hermes", "claude", "gemini", "opencode", "antigravity")]+
+                [{"id": i, "enabled": False} for i in ("codex", "hermes", "claude", "gemini", "opencode", "antigravity", "cursor")]+
                 [{"id": a.id, "command": [sys.executable], "home": a.home, "resume": ["{session}"]}]})
             env = {**os.environ, "XDG_CONFIG_HOME": str(root/"config"), "XDG_STATE_HOME": str(root/"state")}
             result = subprocess.run([str(ROOT/"bin/agent-hub"), "conversations", "--json"], env=env, capture_output=True, text=True, check=True)

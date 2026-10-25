@@ -1,9 +1,10 @@
 """Read account quotas through installed native clients; never inspect credentials."""
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime
 import json
 import math
 import os
+from pathlib import Path
 import subprocess
 import threading
 import time
@@ -160,6 +161,15 @@ class Monitor:
         try:
             windows = tuple(self.loader(self.agent))
             error = '' if windows else 'El proveedor no informa porcentajes de cuota.'
+            if windows and self.agent is not None:
+                from .manager import private_json
+                state = Path(os.environ.get('XDG_STATE_HOME', str(Path.home()/'.local/state')))/'agent-hub'
+                try:
+                    private_json(state/'usage-cache'/(self.agent.id+'.json'),
+                                 {'checked_at': time.time(), 'provider': self.agent.kind,
+                                  'windows': [asdict(window) for window in windows]})
+                except OSError:
+                    pass  # Cache failure must not hide a successful native reading.
         except Exception:
             windows, error = (), 'Cuota no disponible · u reintenta · sin estimaciones'
         with self.lock:

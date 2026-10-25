@@ -63,6 +63,18 @@ def parse_result(profile, raw):
                 usage = event.get('stats')
                 if event.get('status') == 'error':
                     failure = str(event.get('error','Gemini CLI failure'))
+        elif kind == 'cursor-jsonl':
+            if event.get('type') == 'system' and event.get('subtype') == 'init':
+                native = event.get('session_id')
+            if event.get('type') == 'result':
+                native = event.get('session_id') or native
+                if isinstance(event.get('result'), str):
+                    answer = [event['result']]
+                usage = event.get('usage')
+                if event.get('is_error') or event.get('subtype') == 'error':
+                    failure = event.get('result') or 'Cursor CLI failure'
+            if event.get('type') == 'error':
+                failure = event.get('message') or 'Cursor CLI failure'
         elif kind == 'hermes-jsonl':
             if event.get('type') == 'system' and event.get('subtype') == 'init':
                 native = event.get('session_id')
@@ -73,12 +85,14 @@ def parse_result(profile, raw):
                 if event.get('exit_code') or event.get('error'):
                     failure = event.get('error') or 'native failure'
     if not native:
+        if failure:
+            return {'text': '', 'native_id': None, 'tokens': None, 'cost': None, 'error': str(failure)}
         raise ValueError('El CLI no devolvió ID nativo verificable.')
     if not answer and not failure:
         failure='El CLI terminó sin una respuesta visible; se conservó su ID nativo.'
     tokens = None
     if isinstance(usage,dict):
-        values = ([usage.get(k) for k in ('input_tokens','output_tokens')] if kind=='codex-jsonl' else [usage.get('total_tokens')] if kind=='gemini-jsonl' else [usage.get('total')])
+        values = ([usage.get(k) for k in ('input_tokens','output_tokens')] if kind in ('codex-jsonl','cursor-jsonl') else [usage.get('total_tokens')] if kind=='gemini-jsonl' else [usage.get('total')])
         if all(type(v) is int and v>=0 for v in values):
             tokens = sum(values)
     from ..agents import check_id
@@ -108,6 +122,10 @@ class Runner:
         if hint['complexity']=='critical' and task.contract['complexity']!='critical':
             raise ValueError('La tarea afecta un ámbito crítico; actualiza su contrato y requiere aprobación humana.')
         workspace = self.workspaces.get(ident)
+        reference = task.contract.get('project') or {}
+        if role == 'worker' and task.contract['permissions']['filesystem'] == 'write' and (reference.get('agent') == 'directory' or profile['provider'] in ('codex','cursor','hermes','antigravity','claude','gemini','opencode')):
+            from .project_memory import require
+            require(reference.get('id') if reference.get('agent') == 'directory' else workspace['repo'])
         fingerprint = self.workspaces.fingerprint(ident)
         policy = self.policies.check(task,profile,fingerprint,role)
         if role=='worker' and task.status!='ready':
@@ -145,7 +163,13 @@ class Runner:
             from ..agents import check_id
             values['session']=check_id(native)
             command=profile['resume_command']
-        if profile['model'] and profile['provider'] in ('codex','hermes','gemini','antigravity') and not any('{model}' in part for part in command):
+        if profile['provider']=='codex' and 'exec' in command and '--sandbox' not in command:
+            # Translate the contract's filesystem ceiling to the native sandbox;
+            # do not change native approvals or use a bypass flag.
+            position=command.index('exec')
+            mode='workspace-write' if role=='worker' and task.contract['permissions']['filesystem']=='write' else 'read-only'
+            command=[*command[:position],'--sandbox',mode,*command[position:]]
+        if profile['model'] and profile['provider'] in ('codex','hermes','gemini','antigravity','cursor') and not any('{model}' in part for part in command):
             command=[*command,'--model',profile['model']]
         try:
             argv=[]
@@ -188,6 +212,13 @@ class Runner:
         def cancelled():
             row=self.conn.execute('SELECT status FROM tasks WHERE id=?',(number(ident),)).fetchone()
             return row[0]=='cancelled'
+        environment = {}
+        if pack.get('architecture'):
+            architecture = pack['architecture']
+            environment = {'DOTFILES_PROJECT_DIRECTORY':reference.get('id') if reference.get('agent')=='directory' else workspace['repo'],
+                           'DOTFILES_WORKSPACE_DIRECTORY':workspace['path']}
+            if architecture and not architecture.get('truncated'):
+                environment['DOTFILES_ARCHITECTURE_REVISION'] = architecture['revision']
         result=None;error=None;raw=None
         try:
             timeout = min(budget['timeout_seconds'], max(.01, deadline-time.monotonic())) if deadline else budget['timeout_seconds']
@@ -195,11 +226,11 @@ class Runner:
             if profile.get('container'):
                 from .container import execute_container
                 raw=execute_container(profile,workspace['path'],self.state,execution_id,argv,prompt,timeout,
-                                      writable,task.contract['permissions']['network'],policy['runtime_write_paths'],started,cancelled)
+                                      writable,task.contract['permissions']['network'],policy['runtime_write_paths'],started,cancelled,environment=environment)
             else:
                 raw=execute(argv,workspace['path'],prompt,timeout,writable=writable,
                             network=task.contract['permissions']['network'],runtime_paths=policy['runtime_write_paths'],
-                            started=started,cancelled=cancelled)
+                            started=started,cancelled=cancelled,environment=environment)
             if raw['stdout'].strip():
                 result=parse_result(profile,raw['stdout'])
             if native and profile['resume_command'] and result and result.get('native_id') and result['native_id']!=native:

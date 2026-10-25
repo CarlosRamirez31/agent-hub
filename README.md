@@ -97,6 +97,104 @@ lectura marcada como anterior; si no hubo una lectura válida, indica no disponi
 Que pase la hora de reinicio no supone automáticamente que el saldo volvió a 100%:
 se confirma en la siguiente consulta. Demo nunca consulta cuentas.
 
+## Cursor y cierre por inactividad
+
+Cursor CLI se descubre como `cursor-agent`. `agent-hub --agent cursor` abre su
+biblioteca; `n` crea una conversación y Enter reanuda su ID exacto. El lector usa
+solo `chats/*/*/meta.json`: no importa blobs internos ni historial de herramientas.
+La exportación de mensajes de Cursor todavía no está disponible. En print mode,
+el perfil de Cursor participa como análisis/propuesta y revisión; el router respeta
+su techo de lectura y no lo elige para escribir código automáticamente.
+
+`agent-hub work init --json` registra perfiles `cursor` y `cursor-reviewer`, sin
+sobrescribir perfiles existentes. Ambos reciben las skills globales del motor;
+el reviewer usa `--mode ask`. Print mode conserva las aprobaciones nativas: no
+se añaden `--force`, `--trust` ni compras. Sin autorización nativa para editar,
+Cursor propone cambios. [Referencia oficial](https://cursor.com/docs/cli/headless).
+
+El instalador externo `dotfiles-agent-skills` coloca las seis skills en
+`~/.cursor/skills/` e inyecta preferencias y memoria por directorio mediante
+`sessionStart`. No crea documentos del agente dentro del proyecto. Privacy Mode
+se administra en la cuenta de Cursor, no mediante una opción inventada del Hub.
+
+```sh
+agent-hub idle configure --minutes 10 --install-hooks
+agent-hub idle status
+# Desactivar el cierre (los hooks observadores pueden permanecer):
+agent-hub idle configure --minutes 0
+```
+
+El Hub abre Codex con un servidor privado para que sus hooks conserven la identidad
+de la sesión. Tras el plazo confirmado sin tarea, el watcher cierra ese CLI. Hermes usa
+un plugin en el contenedor local que aplica el mismo plazo al proceso nativo, incluso
+si se abrió fuera del Hub; si otra sesión del proceso sigue activa o falta su ID, lo
+conserva. Herramientas, subagentes y solicitudes de permisos mantienen el estado
+ocupado. El watcher de Codex vive con la conversación y vuelve al selector al cerrar;
+la siguiente apertura reanuda el ID nativo guardado. Nunca termina servicios
+compartidos ni toda la aplicación con Alt+Q. El instalador conserva hooks ajenos y
+hace respaldo. Las sesiones ya abiertas necesitan una nueva sesión para cargar
+hooks recién instalados.
+
+## Saldo bajo en la orquestación
+
+Las consultas nativas del pie guardan snapshots privados en `usage-cache/`. El
+router usa solo datos de menos de cinco minutos y reinicios aún no vencidos: con
+10% o menos reduce la prioridad y con 0% evita ese adaptador en asignaciones
+orquestadas. Las asignaciones `fixed` conservan su agente. No hay consultas de red
+durante el cálculo de la ruta. Sin un snapshot reciente, el saldo es desconocido.
+Los grupos independientes de Antigravity no se confunden con una sola cuota.
+Cursor no expone una cuota compatible por CLI: no se inventa su porcentaje.
+
+Ante errores nativos de cuota, rate limit o créditos, el run aplica el handoff
+estructurado existente, con contexto, capacidades y budgets; no compra créditos ni
+cambia una asignación fija. Las aprobaciones por tarea, límites de permisos y gates
+de revisión siguen siendo necesarios para ejecutar un run.
+
+## Tareas con arquitectura por directorio
+
+El flujo `work run request` interpreta la carpeta mencionada, consulta la memoria
+externa con `dotfiles-project-context` y entrega al planificador nativo un contexto
+acotado. No usa Git para identificar el proyecto ni lee archivos de credenciales.
+El planificador debe devolver estructura, responsabilidades, evidencia, alcance,
+checks, criterios de aceptación y decisiones pendientes. Si falta arquitectura,
+se guarda fuera del código como `draft` o `defined`, según lo que pudo establecer.
+Un borrador o preguntas sin resolver bloquean la implementación.
+
+```sh
+agent-hub work run request --intent 'Cambia el cálculo en /ruta/al/proyecto' --json
+agent-hub work run request --intent 'Crea el proyecto inventory-api con Python y ...' --auto --json
+agent-hub work run request --continue-run RUN-001 --intent 'Mis decisiones y aclaraciones...' --auto --json
+```
+
+La integración de Coucou usa `/tarea auto ...`. Para aclarar un plan pendiente:
+`/definir RUN-001 respuestas...`. El cliente consume este contrato público; no se
+implementa el workflow en el escritorio. Una carpeta ambigua produce una pregunta,
+no una búsqueda indiscriminada del sistema. Proyectos nuevos con nombre concreto
+van por defecto a `~/Documents/Programacion/`; no se crea `.git`.
+
+La ejecución automática solo continúa con diseño definido y alcance/checks
+concretos. Usa un snapshot acotado por tarea, permite revisión independiente y
+aplica al origen únicamente después de los gates, siempre que el usuario no haya
+cambiado el árbol original mientras tanto. El snapshot conserva los cambios locales
+que había al empezar y registra una asociación explícita con la memoria del
+directorio indicado. Otros worktrees continúan separados; no se asocian por Git. No copia secretos conocidos ni directorios de dependencias
+habituales; si hacen falta dependencias o un entorno ausente, lo informa en vez de
+instalarlos silenciosamente. Los proyectos grandes o enlazados pueden requerir
+acotar el alcance. No ejecuta migraciones ni publica como parte de esta operación.
+
+La policy `request-auto` se limita a estas tareas solicitadas: transporte nativo y
+shell, sin instalación de dependencias, commits ni push. Las aprobaciones de red
+quedan registradas para el snapshot de la tarea y su revisión. Cambios críticos
+conservan las aprobaciones humanas del motor. Si el usuario restringe esa policy,
+no se vuelve a ampliar automáticamente. Los runs manuales anteriores conservan su
+workflow de worktrees y sus policies.
+
+Antes de que un worker nativo escriba código, el motor exige arquitectura externa
+definida y la incorpora al context pack. Los hooks globales del instalador de
+skills aplican el requisito a los clientes nativos: una primera escritura recibe
+el documento; una revisión nueva exige consultarlo otra vez. Estos controles de
+workflow complementan el sandbox y no reemplazan sus permisos.
+
 ## Navegación
 
 | Tecla | Acción |
@@ -267,3 +365,14 @@ sh -n install.sh
 Las pruebas automáticas son locales y no usan modelos ni servicios de IA. En esta versión se comprobaron además Codex app-server y Hermes reales, incluida una continuación de contexto ficticio hacia Hermes, su sesión nativa y su ruta de apertura.
 
 Para desinstalar, elimina el enlace `~/.local/bin/agent-hub`; la base y las conversaciones se conservan. MIT · Carlos Ramirez.
+
+### Selección de contexto de programación
+
+Las skills compartidas se seleccionan en `engine/skills.py`: context-efficiency solo bajo petición explícita;
+software-architect para medium/complex/critical o dominio architecture;
+simplicidad/AppSec para escritura, surgical-edits
+para escritura trivial/small, AppSec también para red o dominio security.
+repo-scaffold se pide explícitamente al planificar un proyecto nuevo. Los pedidos
+explícitos del contrato/perfil prevalecen y conservan los límites de scope. Otras
+skills globales mantienen su inclusión automática. No cambia el requisito de
+arquitectura definida ni el presupuesto, y no se estiman tokens ahorrados.

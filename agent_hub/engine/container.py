@@ -23,7 +23,7 @@ def write_private(path,value):
         Path(temporary).unlink(missing_ok=True)
 
 
-def execute_container(profile,workspace,state,execution,argv,prompt,timeout,writable,network,runtime_paths,started,cancelled):
+def execute_container(profile,workspace,state,execution,argv,prompt,timeout,writable,network,runtime_paths,started,cancelled,environment=None):
     config=profile['container']
     host=Path(config['host_root']).resolve()
     runtime=Path(config['runtime_root'])
@@ -36,12 +36,14 @@ def execute_container(profile,workspace,state,execution,argv,prompt,timeout,writ
     directory.mkdir(parents=True,exist_ok=True,mode=0o700)
     cancel=directory/'cancel'
     complete=directory/'complete'
-    common=Path(git(workspace,'rev-parse','--git-common-dir').decode().strip())
-    if not common.is_absolute():common=(Path(workspace)/common).resolve()
+    common=None
+    if (Path(workspace)/'.git').exists():
+        common=Path(git(workspace,'rev-parse','--git-common-dir').decode().strip())
+        if not common.is_absolute():common=(Path(workspace)/common).resolve()
     request={'argv':argv,'workspace':str(Path(workspace).resolve()),'source_workspace':mapped(workspace),
-             'aliases':[[str(runtime),str(host)]],'common_directory':[mapped(common),str(common)],
+             'aliases':[[str(runtime),str(host)]],'common_directory':[mapped(common),str(common)] if common else None,
              'timeout':timeout,'writable':writable,'network':network,'runtime_paths':runtime_paths,
-             'cancel':mapped(cancel),'complete':mapped(complete)}
+             'environment':environment or {},'cancel':mapped(cancel),'complete':mapped(complete)}
     descriptor=directory/'request.json';write_private(descriptor,request)
     helper=Path(__file__).resolve().with_name('container_process.py')
     command=['podman','exec','-i',config['name'],'python3','-B',mapped(helper),'--request',mapped(descriptor)]

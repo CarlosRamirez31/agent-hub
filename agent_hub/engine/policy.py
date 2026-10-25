@@ -57,7 +57,7 @@ class Policies:
         contract = task.contract
         policy = self.get(contract.get('policy','default'))
         caps=profile.get('permissions',{})
-        if contract['permissions']['filesystem']=='write' and caps.get('filesystem','write')!='write':
+        if role=='worker' and contract['permissions']['filesystem']=='write' and caps.get('filesystem','write')!='write':
             raise ValueError('El perfil no admite escritura.')
         for operation in ('network','dependencies','git_commit','shell'):
             if contract['permissions'][operation] and caps.get(operation,True) is False:

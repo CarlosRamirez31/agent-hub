@@ -11,7 +11,7 @@ import subprocess
 from .native import read_index, read_messages
 from .store import Chat, Project
 
-KINDS = {"codex", "hermes", "claude", "gemini", "opencode", "normalized", "antigravity"}
+KINDS = {"codex", "hermes", "claude", "gemini", "opencode", "normalized", "antigravity", "cursor"}
 SAFE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\Z")
 
 
@@ -46,7 +46,7 @@ class Agent:
         if self.kind == "codex":
             return any(home.glob("state_*.sqlite"))
         marker = {"hermes": "state.db", "claude": "projects", "gemini": "tmp",
-                  "opencode": "opencode.db", "normalized": "index.json", "antigravity": "index.json"}[self.kind]
+                  "cursor": "chats", "opencode": "opencode.db", "normalized": "index.json", "antigravity": "index.json"}[self.kind]
         return (home/marker).exists() or (self.kind == "claude" and (home/"history.jsonl").exists())
 
     def map_path(self, path, reverse=False):
@@ -127,6 +127,11 @@ class Agent:
             raise ValueError(self.name + " no soporta fork nativo; usa el traspaso de contexto con x.")
         try:
             command = self.command + [part.format_map(values) for part in template]
+            # The shared Codex app-server does not inherit this launcher's
+            # per-session lifecycle ID, so hooks cannot bind its events safely.
+            # A private server keeps the hooks and supervised CLI together.
+            if self.kind == "codex" and Path(command[0]).name == "codex" and "--no-daemon" not in command:
+                command.insert(1, "--no-daemon")
             if prompt_file:
                 if not self.prompt:
                     raise ValueError(self.name + ": configura prompt para poder recibir contexto.")
@@ -144,7 +149,12 @@ class Agent:
             checked = run("",session,probe=True,cwd=directory)
             if checked.get("error"):raise ValueError(checked["error"])
         options = {"env": {**os.environ, "AGY_CLI_DISABLE_AUTO_UPDATE": "true"}} if self.kind == "antigravity" else {}
-        return subprocess.run(self.argv(directory, session, prompt_file, fork), cwd=directory, check=False, **options).returncode
+        from .idle import launch as idle_launch, minutes
+        delay = minutes()
+        command = self.argv(directory, session, prompt_file, fork)
+        if delay and self.kind in ('codex', 'cursor', 'antigravity', 'hermes'):
+            return idle_launch(self, command, directory, session if not fork else None, delay, options.get('env'))
+        return subprocess.run(command, cwd=directory, check=False, **options).returncode
 
 
 def registry(config_path=None):
@@ -152,6 +162,8 @@ def registry(config_path=None):
     known = [
         Agent("codex", "Codex", "codex", os.environ.get("CODEX_HOME", str(home/".codex")), ["codex"],
               ["-C", "{cwd}", "resume", "{session}"], ["-C", "{cwd}"], ["{prompt}"], ["-C", "{cwd}", "fork", "{session}"]),
+        Agent("cursor", "Cursor", "cursor", str(home/".cursor"), ["cursor-agent"],
+              ["--workspace", "{cwd}", "--resume", "{session}"], ["--workspace", "{cwd}"], ["{prompt}"]),
         Agent("hermes", "Hermes", "hermes", os.environ.get("HERMES_HOME", str(home/".hermes")), ["hermes"],
               ["chat", "--in", "{cwd}", "--resume", "{session}"], ["chat", "--in", "{cwd}"], ["--query-file", "{prompt_file}"]),
         Agent("claude", "Claude Code", "claude", os.environ.get("CLAUDE_CONFIG_DIR", str(home/".claude")), ["claude"],

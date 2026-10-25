@@ -93,10 +93,10 @@ class CommandsTests(unittest.TestCase):
             executable.chmod(0o755)
             with patch.dict(os.environ, {"PATH": str(root) + os.pathsep + os.environ["PATH"], "RECORD": str(record)}):
                 self.assertEqual(launch(Chat(ID, "title", str(cwd), 0)), 0)
-            self.assertEqual(json.loads(record.read_text()), ["-C", str(cwd), "resume", ID])
+            self.assertEqual(json.loads(record.read_text()), ["--no-daemon", "-C", str(cwd), "resume", ID])
             with patch.dict(os.environ, {"PATH": str(root) + os.pathsep + os.environ["PATH"], "RECORD": str(record)}):
                 self.assertEqual(launch(Chat(ID, "title", str(cwd), 0), fork=True), 0)
-            self.assertEqual(json.loads(record.read_text()), ["-C", str(cwd), "fork", ID])
+            self.assertEqual(json.loads(record.read_text()), ["--no-daemon", "-C", str(cwd), "fork", ID])
             self.assertFalse((cwd / "PWNED").exists())
 
     def test_installer_is_idempotent_and_refuses_to_replace(self):

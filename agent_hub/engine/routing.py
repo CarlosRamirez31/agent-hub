@@ -23,6 +23,9 @@ class Router:
     def __init__(self, conn):
         self.conn = conn
         self.profiles = Profiles(conn)
+        from pathlib import Path
+        database = conn.execute('PRAGMA database_list').fetchone()[2]
+        self.state = Path(database).parent if database else None
 
     def candidates(self, task, role='worker'):
         assignment = task.contract['assignment']
@@ -32,6 +35,16 @@ class Router:
             if role not in profile['roles'] or not profile['available']:
                 continue
             if role == 'worker' and assignment['mode'] == 'fixed' and profile['id'] != assignment['agent']:
+                continue
+            ceilings=profile.get('permissions',{})
+            if role=='worker' and task.contract['permissions']['filesystem']=='write' and ceilings.get('filesystem')=='read':
+                continue
+            if task.contract['permissions']['network'] and ceilings.get('network') is False:
+                continue
+            from .availability import quota
+            balance = quota(profile, self.state)
+            fixed = role == 'worker' and assignment['mode'] == 'fixed'
+            if balance['status'] == 'exhausted' and not fixed:
                 continue
             required = set(task.contract['capabilities']) if role == 'worker' else set()
             if not required <= set(profile['capabilities']):
@@ -57,9 +70,10 @@ class Router:
             cost = {'local':0,'low':3,'medium':8,'high':15,'unknown':20}[profile['cost_class']]
             # Complexity makes context fit more valuable; no model/provider substitution.
             scale = 2 if hint['complexity'] in ('complex','critical') else 1
-            score = 50 + specialization + domain + skills + historical + scale*capacity-cost
+            low_balance = 60 if balance['status'] in ('low', 'exhausted') and not fixed else 0
+            score = 50 + specialization + domain + skills + historical + scale*capacity-cost-low_balance
             candidates.append({'id':profile['id'],'score':round(score,3),
-                               'reason':{'domain':domain,'specialization':specialization,'skills':skills,'history':historical,'cost':cost}})
+                               'reason':{'domain':domain,'specialization':specialization,'skills':skills,'history':historical,'cost':cost,'low_balance':low_balance,'quota':balance}})
         return sorted(candidates, key=lambda row: (-row['score'],row['id']))
 
     def choose(self, ident, role='worker', persist=True):

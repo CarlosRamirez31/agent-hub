@@ -4,6 +4,29 @@ import time
 from .tasks import text,fields,AGENT_ID
 
 
+# Only these bundled skills opt into relevance filtering. Custom global skills
+# keep their historical always-included semantics.
+BUNDLED = frozenset(('context-efficiency', 'software-architect', 'anti-overengineering',
+                     'surgical-edits', 'repo-scaffold', 'appsec-guardrail'))
+
+
+def relevant_bundled(contract):
+    # Efficiency's full guide is opt-in; native sessions get a brief reminder.
+    selected = set()
+    if contract['complexity'] in ('medium', 'complex', 'critical') or contract['domain'] == 'architecture':
+        selected.add('software-architect')
+    permissions = contract['permissions']
+    if permissions['filesystem'] == 'write':
+        selected.update(('anti-overengineering', 'appsec-guardrail'))
+        if contract['complexity'] in ('trivial', 'small'):
+            selected.add('surgical-edits')
+    if permissions['network'] or contract['domain'] == 'security':
+        selected.add('appsec-guardrail')
+    # New-project scaffolding is selected explicitly by the request planner or
+    # the task/profile. Never infer it from untrusted filenames or prose.
+    return selected
+
+
 class Skills:
     def __init__(self, conn):
         self.conn = conn
@@ -45,8 +68,10 @@ class Skills:
         project = json.dumps(task.contract.get('project'), sort_keys=True, ensure_ascii=False)
         requested = list(dict.fromkeys(task.contract['skills'] + profile['skills']))
         selected = []
+        relevant = relevant_bundled(task.contract) | set(requested)
         for row in self.conn.execute("SELECT * FROM skills WHERE scope='global' ORDER BY id"):
-            selected.append(dict(row))
+            if row['id'] not in BUNDLED or row['id'] in relevant:
+                selected.append(dict(row))
         for ident in requested:
             item = self.get(ident)
             if item['scope'] == 'agent' and item['owner'] != profile['id']:

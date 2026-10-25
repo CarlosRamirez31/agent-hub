@@ -31,6 +31,20 @@ class Contexts:
                 'workspace': workspace['path'], 'branch': workspace['branch'],
                 'base': workspace['base'], 'skills': Skills(self.conn).for_task(task, profile),
                 'project_state': None, 'feedback': [], 'files': [], 'history': [], 'git_diff': '', 'omitted': []}
+        reference = task.contract.get('project') or {}
+        if reference.get('agent') == 'directory' or profile.get('provider') in ('codex','cursor','hermes','antigravity','claude','gemini','opencode'):
+            from .project_memory import load
+            memory = load(reference['id'] if reference.get('agent') == 'directory' else workspace['repo'])
+            pack['architecture'] = {**memory, 'content': memory['content'][:20000],
+                                    'truncated': len(memory['content']) > 20000}
+        linked = self.conn.execute('SELECT r.budget FROM runs r JOIN run_tasks rt ON rt.run=r.id WHERE rt.task=?',(number(ident),)).fetchone()
+        if linked:
+            request = json.loads(linked[0]).get('request')
+            if request:
+                design = request['plan']['architecture']
+                pack['task_design'] = {'summary':request['plan']['summary'], 'status':design['status'],
+                                       'content':design['content'] if design['content'] != (pack.get('architecture') or {}).get('content') else '',
+                                       'use_project_architecture':design['content'] == (pack.get('architecture') or {}).get('content')}
         project = json.dumps(task.contract.get('project'), sort_keys=True, ensure_ascii=False)
         row = self.conn.execute('SELECT state FROM project_states WHERE id=?', (project,)).fetchone()
         if row:
@@ -51,7 +65,7 @@ class Contexts:
         def size():
             return len(json.dumps(pack, ensure_ascii=False))
         if size() > limit:
-            raise ValueError('El contrato y las skills obligatorias exceden el budget de contexto.')
+            raise ValueError('El contrato, la arquitectura y las skills obligatorias exceden el budget de contexto.')
         root = Path(workspace['path'])
         for name in task.contract['scope']['files']:
             file = root/name
@@ -71,7 +85,7 @@ class Contexts:
             pack['history'].append({'role': message['role'], 'text': message['text']})
             if size() > limit-200:
                 pack['history'].pop();pack['omitted'].append('history');break
-        diff = git(root, 'diff', '--no-ext-diff', '--no-textconv', workspace['base'], '--').decode('utf-8', errors='replace')
+        diff = Workspaces(self.conn,self.state).diff(ident)
         available = max(0, limit-size()-500)
         pack['git_diff'] = diff[:available]
         if len(diff) > available:

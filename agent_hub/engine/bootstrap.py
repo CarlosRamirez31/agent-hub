@@ -19,6 +19,10 @@ def initialize(conn, agents=None):
             command=[*base,'exec','--json','--skip-git-repo-check','-']
             resume=[*base,'exec','resume','{session}','--json','--skip-git-repo-check','-']
             output='codex-jsonl';capabilities=['coding','debugging','refactoring','testing','architecture','security-review']
+        elif agent.kind=='cursor':
+            command=[*base,'--print','--output-format','stream-json']
+            resume=command+['--resume','{session}']
+            output='cursor-jsonl';capabilities=['coding','debugging','refactoring','testing','architecture','research','summarization','security-review']
         elif agent.kind=='hermes':
             command=[*base,'chat','--oneshot','--format','stream-json','--query-file','-','--max-turns','{max_turns}']
             resume=command+['--resume','{session}']
@@ -46,8 +50,11 @@ def initialize(conn, agents=None):
             if role=='reviewer' and agent.kind=='antigravity':
                 schema=str(Path(__file__).resolve().parents[2]/'docs/review.schema.json')
                 role_command+=['--schema',schema];role_resume+=['--schema',schema]
+            if role=='reviewer' and agent.kind=='cursor':
+                role_command+=['--mode','ask'];role_resume+=['--mode','ask']
             profiles.register({'id':ident,'provider':agent.kind,'description':agent.name+' '+role+' · native CLI authentication; explicit policy/approvals required',
                 'capabilities':capabilities,'roles':[role],'command':role_command,'resume_command':role_resume,'format':output,
+                'permissions':{'filesystem':'read'} if agent.kind=='cursor' else {},
                 'adapter':agent.id,'tools':['filesystem','shell'],'cost_class':'unknown','container':container,
                 'priority_domains':['coding'] if agent.kind=='codex' else []})
             created.append(ident)

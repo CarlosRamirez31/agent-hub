@@ -41,12 +41,12 @@ def validate(raw):
         raise ValueError('resume_command debe contener {session}; nunca se usa latest.')
     value['resume_command']=resume
     value['format'] = raw.get('format', 'json')
-    if value['format'] not in ('json', 'codex-jsonl', 'hermes-jsonl', 'gemini-jsonl', 'text'):
+    if value['format'] not in ('json', 'codex-jsonl', 'hermes-jsonl', 'gemini-jsonl', 'cursor-jsonl', 'text'):
         raise ValueError('Formato de ejecución no compatible.')
     value['model'] = raw.get('model')
     if value['model'] is not None:
         text(value['model'], 'model', 256)
-        if value['provider'] not in ('codex','hermes','gemini','antigravity') and not any('{model}' in part for part in command):
+        if value['provider'] not in ('codex','hermes','gemini','antigravity','cursor') and not any('{model}' in part for part in command):
             raise ValueError('El modelo declarado debe usarse en command mediante {model}.')
     value['enabled'] = raw.get('enabled', True)
     if type(value['enabled']) is not bool:

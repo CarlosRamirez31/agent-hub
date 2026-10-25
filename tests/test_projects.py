@@ -195,7 +195,7 @@ class FolderPickerTests(unittest.TestCase):
                         wait_for(folder.name.encode())
                         os.write(master, b"n\n")
                         wait_file(record)
-                        self.assertEqual(json.loads(record.read_text()), ["-C", str(folder)])
+                        self.assertEqual(json.loads(record.read_text()), ["--no-daemon", "-C", str(folder)])
                     os.write(master, b"q")
                     self.assertEqual(process.wait(timeout=5), 0)
                 finally:

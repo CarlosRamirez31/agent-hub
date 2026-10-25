@@ -113,6 +113,9 @@ def parse_route(args):
 
 def main(argv=None):
     arguments = list(sys.argv[1:] if argv is None else argv)
+    if arguments and arguments[0] == 'idle':
+        from .idle import main as idle_main
+        return idle_main(arguments[1:])
     if arguments and arguments[0] == 'agy-run':
         from .antigravity import main as agy_main
         return agy_main(arguments[1:])

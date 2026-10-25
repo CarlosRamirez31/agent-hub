@@ -165,7 +165,10 @@ class Runs:
             if not cache.conn.execute('SELECT 1 FROM workspaces WHERE task=?',(number(ident),)).fetchone():
                 if not settings.get('repo'):
                     raise ValueError('Falta repositorio explícito para preparar un worktree.')
-                workspace.create(ident,settings['repo'],settings.get('ref','HEAD'))
+                if settings.get('workspace_mode')=='directory':
+                    workspace.create_directory(ident,settings['repo'])
+                else:
+                    workspace.create(ident,settings['repo'],settings.get('ref','HEAD'))
             if not settings.get('checks'):
                 raise ValueError('Define checks deterministas antes de ejecutar el worker.')
             previous=cache.conn.execute("SELECT status,fingerprint FROM executions WHERE task=? AND role='worker' ORDER BY id DESC LIMIT 1",(number(ident),)).fetchone()
@@ -178,6 +181,10 @@ class Runs:
                 store.status(ident,'ready')
             if store.get(ident).status=='ready':
                 target=cache.conn.execute('SELECT target FROM structured_handoffs WHERE task=? ORDER BY id DESC LIMIT 1',(number(ident),)).fetchone()
+                if current.contract.get('policy')=='request-auto':
+                    from .policy import Policies
+                    Policies(cache.conn).approve(ident,'network',workspace.fingerprint(ident),True,
+                        'Continuación de la tarea de directorio solicitada sobre el mismo snapshot aislado.')
                 outcome=runner.run(ident,target[0] if target else None,deadline=deadline)
                 if outcome['status']!='completed':
                     return outcome
@@ -201,6 +208,12 @@ class Runs:
                         profile=next((p['id'] for p in options if 'security-review' in Profiles(cache.conn).get(p['id'])['capabilities']),None)
                         if profile is None:
                             raise ValueError('Falta reviewer independiente de seguridad.')
+                    if task.contract.get('policy')=='request-auto':
+                        # The user's requested task also authorizes its independent
+                        # native review transport on the exact verified bytes.
+                        from .policy import Policies
+                        Policies(cache.conn).approve(ident,'network',workspace.fingerprint(ident),True,
+                            'Revisión independiente de la tarea de directorio solicitada; mismo alcance y policy, sin publicación.')
                     reviewed=runner.run(ident,profile,role='reviewer',review_kind=kind,deadline=deadline)
                     if reviewed['status']!='completed' or reviewed.get('result',{}).get('review',{}).get('verdict')!='approve':
                         store.status(ident,'changes_requested',reason='review rejected or failed')
@@ -220,6 +233,11 @@ class Runs:
 
     def execute(self, ident, max_parallel=None):
         run=self.get(ident)
+        request = run['configuration'].get('request')
+        if request and request['status'] != 'ready':
+            with self.conn:
+                self.conn.execute("UPDATE runs SET status='waiting_human' WHERE id=?", (run_number(ident),))
+            return {**self.get(ident), 'results':[{'error':'Primero resuelve las preguntas y define la arquitectura del proyecto.'}]}
         limits=run['configuration']['limits']
         parallel=limits['max_parallel'] if max_parallel is None else max_parallel
         if type(parallel) is not int or not 1<=parallel<=min(limits['max_parallel'],limits['max_agents']):
@@ -260,7 +278,8 @@ class Runs:
                     attempts=self.conn.execute("SELECT COUNT(*) FROM executions WHERE task=? AND role='worker'",(number(task),)).fetchone()[0]
                     retryable=result.get('status') in ('failed','changes_requested') and attempts<=current.contract['budget']['max_retries']
                     error=str(result.get('result',{}).get('error') or result.get('error') or '').casefold()
-                    reason=next((reason for phrase,reason in (('quota','quota_exhausted'),('token limit','token_limit'),('provider unavailable','provider_unavailable')) if phrase in error),None)
+                    from .availability import failure_reason
+                    reason=failure_reason(error)
                     if retryable and reason:
                         if current.contract['assignment']['mode']=='fixed':
                             retryable=False

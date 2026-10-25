@@ -53,6 +53,22 @@ def read_index(kind, home, include_hidden=False):
     if kind == "antigravity":kind = "normalized"
     if kind == "codex":
         return read_chats(home), read_projects(home)
+    if kind == "cursor":
+        result = []
+        # Metadata only: do not open prompt histories, agent blobs or credentials.
+        for path in home.glob("chats/*/*/meta.json"):
+            try:
+                data = load_json(path)
+            except (OSError, ValueError):
+                continue
+            cwd = data.get("cwd")
+            if not isinstance(cwd, str) or not Path(cwd).is_absolute():
+                continue
+            if data.get("hasConversation") is False:
+                continue
+            result.append(Chat(path.parent.name, str(data.get("name") or data.get("title") or "Cursor")[:240],
+                               cwd, timestamp(data.get("updatedAtMs") or data.get("createdAtMs"))))
+        return result, []
     if kind == "hermes":
         db = home / "state.db"
         if not db.exists():

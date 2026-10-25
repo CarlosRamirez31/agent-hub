@@ -26,7 +26,7 @@ def main():
                     request['runtime_paths'],source_workspace=request['source_workspace'],
                     aliases=request['aliases'],common_directory=request['common_directory'],inherited_proc=True)
     result=run_command(command,request['source_workspace'],sys.stdin.read(1024*1024),
-                       request['timeout'],cancelled=cancellation.exists)
+                       request['timeout'],cancelled=cancellation.exists,environment=request.get('environment'))
     # Acknowledgement contains no prompt, credentials or model output.
     Path(request['complete']).write_text('finished\n')
     print(json.dumps(result,ensure_ascii=False))

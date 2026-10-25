@@ -68,13 +68,13 @@ def sandbox(argv, workspace, writable, network=False, runtime_paths=(), source_w
 
 
 def execute(argv, workspace, prompt='', timeout=300, writable=False, network=False,
-            runtime_paths=(), started=None, cancelled=None):
+            runtime_paths=(), started=None, cancelled=None, environment=None):
     command = sandbox(argv, workspace, writable, network, runtime_paths)
-    return run_command(command, workspace, prompt, timeout, started, cancelled)
+    return run_command(command, workspace, prompt, timeout, started, cancelled, environment=environment)
 
 
-def run_command(command, workspace, prompt='', timeout=300, started=None, cancelled=None, output_limit=MAX_OUTPUT):
-    environment = dict(os.environ)
+def run_command(command, workspace, prompt='', timeout=300, started=None, cancelled=None, output_limit=MAX_OUTPUT, environment=None):
+    environment = {**os.environ, **(environment or {})}
     for key in ('LD_PRELOAD', 'LD_LIBRARY_PATH', 'BASH_ENV', 'ENV', 'PYTHONSTARTUP'):
         environment.pop(key, None)
     # Do not let the worker invoke Git writes to the shared common directory.

@@ -29,6 +29,12 @@ class Workspaces:
         path = Path(value['path'])
         if not path.is_dir() or path.resolve() != path:
             raise ValueError('El workspace ya no está disponible o cambió de ubicación.')
+        if not value['branch']:
+            if (path/'.git').exists():
+                raise ValueError('El agente creó Git dentro del snapshot sin autorización; no se aplicaron cambios.')
+            if not value['base'].startswith('directory:') or not self.baseline(ident).is_dir():
+                raise ValueError('El snapshot base del proyecto ya no está disponible.')
+            return value
         actual = git(path, 'rev-parse', '--show-toplevel').decode().strip()
         if actual != str(path):
             raise ValueError('El workspace ya no es el worktree registrado.')
@@ -65,9 +71,60 @@ class Workspaces:
                 raise
         return self.get(ident)
 
+    def baseline(self, ident):
+        number(ident)
+        return self.state/'directory-baselines'/ident
+
+    def create_directory(self, ident, root):
+        from .directory_workspace import copy, manifest, digest
+        store = TaskStore(self.conn)
+        root = Path(root).expanduser().resolve(strict=True)
+        if not root.is_dir() or root in (Path('/'), Path.home()) or self.state.is_relative_to(root):
+            raise ValueError('Selecciona la carpeta concreta del proyecto, separada del estado del Hub.')
+        with store.transaction():
+            if self.conn.execute('SELECT 1 FROM workspaces WHERE task=?', (number(ident),)).fetchone():
+                return self.get(ident)
+            if store.get(ident).status not in ('pending','ready','blocked','waiting_human'):
+                raise ValueError('La tarea no permite crear otro snapshot.')
+            before = manifest(root)
+            baseline = self.baseline(ident)
+            path = self.state/'worktrees'/ident
+            copy(root, baseline)
+            copy(baseline, path)
+            if manifest(root) != before or manifest(baseline) != before:
+                raise ValueError('El proyecto cambió al copiarlo; revisa el snapshot antes de reintentar.')
+            self.conn.execute('INSERT INTO workspaces VALUES (?,?,?,?,?)',
+                              (number(ident), str(root), str(path), '', 'directory:'+digest(before)))
+            from .project_memory import call
+            if (store.get(ident).contract.get('project') or {}).get('agent')=='directory':
+                call('link',path,'--source',str(root))
+            store.event(ident, 'workspace.snapshot_created', {'directory':str(root),'path':str(path),'git_created':False})
+        return self.get(ident)
+
+    def diff(self, ident):
+        workspace = self.get(ident)
+        if not workspace['branch']:
+            from .directory_workspace import diff
+            return diff(self.baseline(ident), workspace['path'])
+        return git(workspace['path'], 'diff', '--no-ext-diff', '--no-textconv', workspace['base'], '--').decode('utf-8',errors='replace')
+
+    def apply_directory(self, ident):
+        from .quality import Quality
+        from .directory_workspace import apply
+        workspace = self.get(ident)
+        if workspace['branch'] or TaskStore(self.conn).get(ident).status != 'done' or not Quality(self.conn,self.state).gate(ident)['passed']:
+            raise ValueError('Solo se aplica un snapshot terminado con gates vigentes.')
+        changed = apply(self.baseline(ident), workspace['path'], workspace['repo'])
+        with self.conn:
+            TaskStore(self.conn).event(ident,'workspace.applied',{'files':changed,'directory':workspace['repo']})
+        return {'task':ident,'files':changed,'directory':workspace['repo']}
+
     def fingerprint(self, ident):
         workspace = self.get(ident)
         path = Path(workspace['path'])
+        if not workspace['branch']:
+            from .directory_workspace import manifest, digest
+            return digest({'contract':TaskStore(self.conn).get(ident).contract,'base':workspace['base'],'files':manifest(path)})
         digest = hashlib.sha256()
         digest.update(json.dumps(TaskStore(self.conn).get(ident).contract, sort_keys=True, ensure_ascii=False).encode())
         digest.update(workspace['base'].encode())
@@ -93,6 +150,10 @@ class Workspaces:
     def changed_files(self, ident):
         workspace = self.get(ident)
         path = workspace['path']
+        if not workspace['branch']:
+            from .directory_workspace import manifest
+            before, after = manifest(self.baseline(ident)), manifest(path)
+            return sorted(name for name in set(before)|set(after) if before.get(name) != after.get(name))
         data = git(path, 'diff', '--no-ext-diff', '--no-textconv', '--name-only', '-z', workspace['base'], '--')
         data += git(path, 'ls-files', '--others', '-z')
         return sorted({os.fsdecode(p) for p in data.split(b'\0') if p})
@@ -102,6 +163,8 @@ class Workspaces:
         from .quality import Quality
         task = TaskStore(self.conn).get(ident)
         workspace = self.get(ident)
+        if not workspace['branch']:
+            raise ValueError('Este proyecto usa snapshots sin Git; aplica sus cambios, no crees commits.')
         fingerprint = self.fingerprint(ident)
         policy = Policies(self.conn)
         if not task.contract['permissions']['git_commit'] or not policy.get(task.contract.get('policy','default'))['git_commit']:
@@ -124,6 +187,8 @@ class Workspaces:
         from .policy import Policies
         from .quality import Quality
         workspace = self.get(ident)
+        if not workspace['branch']:
+            raise ValueError('Usa apply para un proyecto sin worktree Git.')
         fingerprint = self.fingerprint(ident)
         if TaskStore(self.conn).get(ident).status != 'done':
             raise ValueError('Solo se integra una tarea terminada.')

@@ -75,6 +75,7 @@ def parser():
     runs=sub('run')
     action(runs,'list');create=action(runs,'create');create.add_argument('--file',required=True)
     plan=action(runs,'plan');plan.add_argument('--intent',required=True);plan.add_argument('--repo');plan.add_argument('--file',dest='files',action='append',default=[]);plan.add_argument('--agent')
+    request=action(runs,'request');request.add_argument('--intent',required=True);request.add_argument('--repo');request.add_argument('--agent');request.add_argument('--auto',action='store_true');request.add_argument('--continue-run')
     for name in ('show','cancel','recover','prepare'):action(runs,name,True)
     execute=action(runs,'execute',True);execute.add_argument('--parallel',type=int)
     configure=action(runs,'configure',True);configure.add_argument('--file',required=True)
@@ -124,7 +125,7 @@ def dispatch(args, cache, state):
         if args.operation=='commit':return spaces.commit(args.id,args.message)
         if args.operation=='merge':return spaces.merge(args.id)
         space=spaces.get(args.id)
-        return {'task':args.id,'diff':git(space['path'],'diff','--no-ext-diff','--no-textconv',space['base'],'--').decode('utf-8',errors='replace')}
+        return {'task':args.id,'diff':spaces.diff(args.id)}
     if group=='execute':return Runner(conn,state).run(args.id,args.profile,args.role,args.kind,new_session=args.new_session)
     if group=='verify':return Quality(conn,state).verify(args.id,read_contract(args.checks))
     if group=='review':return Quality(conn,state).review(args.id,args.profile,read_contract(args.report),args.kind)
@@ -146,10 +147,19 @@ def dispatch(args, cache, state):
         if args.operation=='list':return runs.list()
         if args.operation=='create':return runs.create(read_contract(args.file))
         if args.operation=='plan':return runs.plan(args.intent,args.repo,args.files,args.agent)
+        if args.operation=='request':
+            from .requests import prepare, execute_ready
+            result=prepare(runs,args.intent,args.repo,args.agent,continue_run=args.continue_run)
+            return execute_ready(runs,result) if args.auto and result['status']=='ready' else result
         if args.operation=='show':return runs.get(args.id)
         if args.operation=='cancel':return runs.cancel(args.id)
         if args.operation=='recover':return runs.recover(args.id)
-        if args.operation=='execute':return runs.execute(args.id,args.parallel)
+        if args.operation=='execute':
+            run=runs.get(args.id)
+            if run['configuration'].get('request'):
+                from .requests import execute_ready
+                return execute_ready(runs,{'run':run,'status':run['configuration']['request']['status'],'summary':run['title'],'questions':[]})
+            return runs.execute(args.id,args.parallel)
         run=runs.get(args.id)
         if run['status'] in ('running','done','cancelled'):raise ValueError('El run no se puede modificar mientras está activo o terminado.')
         if args.operation=='prepare':
@@ -158,7 +168,7 @@ def dispatch(args, cache, state):
                 if not task['blockers']:
                     setting=run['configuration']['tasks'][task['id']]
                     if not setting.get('repo'):raise ValueError('Falta repo explícito para '+task['id'])
-                    prepared.append(spaces.create(task['id'],setting['repo'],setting.get('ref','HEAD')))
+                    prepared.append(spaces.create_directory(task['id'],setting['repo']) if setting.get('workspace_mode')=='directory' else spaces.create(task['id'],setting['repo'],setting.get('ref','HEAD')))
             return {'run':args.id,'workspaces':prepared}
         settings=read_contract(args.file)
         if not isinstance(settings,dict) or set(settings)-set(run['configuration']['tasks']):
